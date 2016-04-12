@@ -4,6 +4,7 @@ module MyData where
 -- sometimes a function is re-implemented accordingly
 
 import Data.Char
+import GHC.Exts
 
 -- is char in string?
 occurs :: Char -> String -> Bool
@@ -20,10 +21,23 @@ position c (s:ss)
  | c == s = 0
  | otherwise = 1 + (position c ss)
 
--- index of first occurence, or -1 if not found
 position2 :: Char -> String -> Int
-position2 c s = if pos >= length(s) then -1 else pos
- where pos = length(takeWhile (/= c) s)
+position2 c s = length(takeWhile (/= c) s)
+
+position3 :: Char -> String -> Int
+position3 c s = head ((allpos c s) ++ [length s])
+
+allpos c ss = [b | (a,b) <- (zip ss [0..(length ss)]), a == c]
+
+--- test a list of position functions
+testPoss :: [(Char -> String -> Int)] -> [Bool]
+testPoss fs = (map testPos) fs
+
+-- test a position function, finding each char in a generated string consisting of all but the last (to test not found as well)
+-- the result should be an unbroken numeric sequence starting at 0
+testPos :: (Char -> String -> Int) -> Bool
+testPos f = and [a == b-1 | (a,b) <- zip poss (tail poss) ] && head poss == 0
+  where poss = [f a ['0'..'y'] | a <- ['0'..'z']]
 
 --  brute force pattern match
 isWhiteSpaceBrute :: Char -> Bool

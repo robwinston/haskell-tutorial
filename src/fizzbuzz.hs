@@ -9,3 +9,7 @@ fizzbuzz x
 
 fizzbuzzes xs = map fizzbuzz xs
 
+fbpairs xs = zip xs (fizzbuzzes xs)
+
+-- sample manipulate pair elements
+-- filter ((\a -> mod a 5 == 0).fst) (fbpairs [1..45])
