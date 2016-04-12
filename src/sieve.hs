@@ -34,7 +34,3 @@ factorOut n xs
   | n < 2 = xs
   | otherwise = filter (\y -> y <= n || mod y n /= 0) xs
 
-
-primes :: [Int]
-primes = thisSieve [2..]
-  where thisSieve (x:xs) = x:thisSieve [y| y <- xs, mod y x > 0]
