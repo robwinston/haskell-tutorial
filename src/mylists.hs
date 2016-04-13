@@ -1,4 +1,5 @@
 module MyLists where
+
 -- 1st duff attempt, does it but backwards
 initSegsRev :: [a] -> [[a]]
 initSegsRev [] = [[]]
@@ -20,4 +21,9 @@ permute [] = [[]]
 permute [x] = [[x]]
 permute (x:xs) = concat (map (interleave x) (permute xs))
 
+
+partition :: [a] -> [[[a]]]
+partition [] = [[[]]]
+partition [x] = [[[x]]]
+partition (x:xs) = [(x: head l):(tail l) | l <- partition xs] ++ [[x]:l | l <- partition xs]
 
