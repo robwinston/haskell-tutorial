@@ -11,19 +11,19 @@ initSegs :: [a] -> [[a]]
 initSegs [] = [[]]
 initSegs (x:xs) = [] : map (x:) (initSegs xs)
 
-interleave :: a -> [a] -> [[a]]
-interleave a [] = [[a]]
-interleave a (x: xs) =
-  (a:x:xs) : map (x:) (interleave a xs)
+interl :: a -> [a] -> [[a]]
+interl a [] = [[a]]
+interl a (x: xs) =
+  (a:x:xs) : map (x:) (interl a xs)
 
-permute :: [a] -> [[a]]
-permute [] = [[]]
-permute [x] = [[x]]
-permute (x:xs) = concat (map (interleave x) (permute xs))
+permu :: [a] -> [[a]]
+permu [] = [[]]
+permu [x] = [[x]]
+permu (x:xs) = concat (map (interleave x) (permu xs))
 
 
-partition :: [a] -> [[[a]]]
-partition [] = [[[]]]
-partition [x] = [[[x]]]
-partition (x:xs) = [(x: head l):(tail l) | l <- partition xs] ++ [[x]:l | l <- partition xs]
+partit :: [a] -> [[[a]]]
+partit [] = [[[]]]
+partit [x] = [[[x]]]
+partit (x:xs) = [(x: head l):(tail l) | l <- partit xs] ++ [[x]:l | l <- partit xs]
 
