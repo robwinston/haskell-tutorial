@@ -16,21 +16,17 @@ sieveSize n = fromIntegral (truncate ((logBase 2 numN) * numN))
 -- append it to first list
 factorOutShiftUntil :: Int -> ([Int], [Int]) -> ([Int], [Int])
 factorOutShiftUntil limit xt
- | length toDo == 0 = xt
+ | toDo == [] = xt
  | length done >= limit = xt
- | (head toDo) * (head toDo)  > last toDo = (fst xt ++ take (limit - (length done)) toDo, [])
- | otherwise = factorOutShiftUntil limit ((fst xt) ++ (fst xtNew), (snd xtNew))
+ | (head toDo) * (head toDo)  > last toDo = (done ++ take (limit - (length done)) toDo, [])
+ | otherwise = factorOutShiftUntil limit (done ++ (fst xtNew), (snd xtNew))
  where
    done = fst xt
    toDo = snd xt
-   xtNew = factorOutFirst toDo
+   nextOne = head toDo
+   xtNew = ([nextOne], factorOut nextOne toDo)
 
-factorOutFirst :: [Int] -> ([Int], [Int])
-factorOutFirst (x:xs) = ([x] , factorOut x xs)
-
--- remove all of the multiples of n from xs
+-- remove f and its multiples from l
 factorOut :: Int -> [Int] -> [Int]
-factorOut n xs
-  | n < 2 = xs
-  | otherwise = filter (\y -> y < n || mod y n /= 0) xs
+factorOut f l = [x | x <- l, mod x f /=0]
 
