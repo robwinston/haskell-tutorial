@@ -26,11 +26,11 @@ factorOutShiftUntil limit xt
    xtNew = factorOutFirst toDo
 
 factorOutFirst :: [Int] -> ([Int], [Int])
-factorOutFirst xs = splitAt 1 (factorOut (head xs) xs)
+factorOutFirst (x:xs) = ([x] , factorOut x xs)
 
--- remove all of the multiples of n from xs (except n itself)
+-- remove all of the multiples of n from xs
 factorOut :: Int -> [Int] -> [Int]
 factorOut n xs
   | n < 2 = xs
-  | otherwise = filter (\y -> y <= n || mod y n /= 0) xs
+  | otherwise = filter (\y -> y < n || mod y n /= 0) xs
 
