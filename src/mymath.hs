@@ -64,8 +64,9 @@ whatsLeft n f
  | otherwise = fromIntegral (quot n f)
 
 
-
 nondecreasing :: [Int] -> Bool
 nondecreasing xs = and [ x <= y |  (x,y) <- zip xs (tail xs) ]
 
+
+multiples n = [x | x <- [1..], mod x n == 0]
 
