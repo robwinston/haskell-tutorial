@@ -31,12 +31,13 @@ factorOutShiftUntilSeq limit xt
    toDo = snd xt
    nextOne = index toDo 0
    lastOne = index toDo ((Data.Sequence.length toDo)-1)   -- can't find Sequence equiv of last
-   xtNew = (singleton nextOne, fosq nextOne toDo)
+   xtNew = (singleton nextOne, factorOutSq nextOne toDo)
 
 
--- Data.Sequence wrapper for factorOut
-fosq :: Int -> Seq Int -> Seq Int
-fosq i l = fromList (factorOut i (toList l))
+-- remove f and its multiples from l
+factorOutSq :: Int -> Seq Int -> Seq Int
+-- factorOutSq f l = [x | x <- l, mod x f /=0]
+factorOutSq f l = Data.Sequence.filter (\x -> mod x f /=0) l
 
 
 toListTuple :: (Seq a, Seq b) -> ([a], [b])
