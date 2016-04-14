@@ -114,27 +114,3 @@ halveList xs = splitAt midpt xs
   where midpt = quot (length xs) 2
 
 
-edge :: Char -> Char -> Bool
-edge 'A' 'B' = True
-edge 'A' 'D' = True
-edge 'B' 'C' = True
-edge 'C' 'A' = True
-edge 'C' 'E' = True
-edge 'D' 'E' = True
-edge 'F' 'D' = True
-edge 'F' 'E' = True
-edge _ _ = False
-
-
-
-
-connected :: Char -> Char -> Bool
-connected a b
-  | edge a b = True
-  | length itsEdges == 0 = False
-  | otherwise = length [e | e <- itsEdges, connected e b] > 0
-    where itsEdges = edges a
-
-
-edges :: Char -> [Char]
-edges a = [e | e <- ['A'..'Z'], edge a e]
