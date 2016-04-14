@@ -2,7 +2,7 @@ module SieveSeq where
 
 import Sieve
 import Data.Sequence
-import Data.Foldable
+import Data.Foldable (toList)
 
 sieveSq :: Int -> [Int]
 sieveSq n = sieveToUntilSq n (sieveSize n)
