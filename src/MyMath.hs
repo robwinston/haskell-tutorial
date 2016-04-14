@@ -70,3 +70,71 @@ nondecreasing xs = and [ x <= y |  (x,y) <- zip xs (tail xs) ]
 
 multiples n = [x | x <- [1..], mod x n == 0]
 
+-- insert value into an already sorted list
+insert :: Int -> [Int] -> [Int]
+insert y [] =  [y]
+insert y (x:xs)
+  | y <= x = y:(x:xs)
+  | otherwise = x:(insert y xs)
+
+isort :: [Int] -> [Int]
+isort [] = []
+isort [a] = [a]
+isort (x:xs) = insert x (isort xs)
+
+isortf :: [Int] -> [Int]
+isortf l = foldr insert [] l
+
+bsort :: [Int] -> [Int]
+bsort [] = []
+bsort xs
+ | length xs < 10 = isort xs
+ | otherwise = mergeSorted (bsort leftHalf) (bsort rightHalf)
+     where (leftHalf, rightHalf) = halveList xs
+
+
+qsort :: [Int] -> [Int]
+qsort [] = []
+qsort [a] = [a]
+qsort (pivot:xs) = (qsort lower) ++ (pivot : (qsort higher))
+  where lower = [x| x<- xs, x < pivot]
+        higher = [x| x <- xs, x > pivot]
+
+
+mergeSorted :: [Int] -> [Int] -> [Int]
+mergeSorted [] rs = rs
+mergeSorted ls [] = ls
+mergeSorted (l:ls) (r:rs)
+  | l <= r = l : mergeSorted ls (r:rs)
+  | otherwise = r : mergeSorted (l:ls) rs
+
+halveList :: [a] -> ([a],[a])
+halveList [] = ([],[])
+halveList xs = splitAt midpt xs
+  where midpt = quot (length xs) 2
+
+
+edge :: Char -> Char -> Bool
+edge 'A' 'B' = True
+edge 'A' 'D' = True
+edge 'B' 'C' = True
+edge 'C' 'A' = True
+edge 'C' 'E' = True
+edge 'D' 'E' = True
+edge 'F' 'D' = True
+edge 'F' 'E' = True
+edge _ _ = False
+
+
+
+
+connected :: Char -> Char -> Bool
+connected a b
+  | edge a b = True
+  | length itsEdges == 0 = False
+  | otherwise = length [e | e <- itsEdges, connected e b] > 0
+    where itsEdges = edges a
+
+
+edges :: Char -> [Char]
+edges a = [e | e <- ['A'..'Z'], edge a e]
