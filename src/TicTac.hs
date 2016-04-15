@@ -7,6 +7,21 @@ type Square = (Int, Char)
 
 type Board = [Square]
 
+-- every autoPlay game's a draw
+-- or (map aWinner (map autoPlayFrom [1..9]))  == False
+
+autoPlayFrom :: Int -> Board
+autoPlayFrom start = autoPlay (move (start, player) board)
+  where board = newBoard
+        player = whosMove board
+
+autoPlay :: Board -> Board
+autoPlay board
+  | aWinner nextBoard = nextBoard
+  | not $ hasMoves nextBoard = nextBoard
+  | otherwise = autoPlay nextBoard
+  where nextBoard = smartMove board
+
 -- play game # n, return the board when game ends
 -- 362,880 possible game sequences (although there's only 26,830 distinct games)
 playGame :: Int -> Board
@@ -39,7 +54,10 @@ move square board
         leftBoard = fst sections
         rightBoard = snd sections
 
-moves :: Board -> [Square]
+hasMoves :: Board -> Bool
+hasMoves board = length (moves board) > 0
+
+moves :: [Square] -> [Square]
 moves b = filter (\sq -> snd sq == ' ') b
 
 winner :: Char -> Board -> Bool
@@ -72,5 +90,89 @@ newBoard :: Board
 newBoard = map (\i -> (i, ' ')) [1..9]
 
 
+-- initial simplistic logic ....
+-- does current player have a winner? - take it
+-- does opponent have a winner? - block it
+-- is the centre free? - take it
+-- is a corner free? - take it
+-- does next player have a penultimate winner? - block it
+
+-- given a board, try to make best move
+smartMove :: Board -> Board
+smartMove board
+  | length maybeWinners > 0 && ticCount player (head maybeWinners)  == 2  = move (ticSquare player (pickUnplayedSquare (head maybeWinners))) board
+  | length maybeLosers > 0 && ticCount opponent (head maybeLosers)  == 2  = move (ticSquare player (pickUnplayedSquare (head maybeLosers))) board
+  | isUnplayed (board !! 4) = move (5, player) board
+  | not $ isPhony unplayedCorner = move (ticSquare player unplayedCorner) board
+  | not $ isPhony unplayedSquare = move (ticSquare player unplayedSquare) board
+  | otherwise = board
+  where
+    player = whosMove board
+    opponent = otherPlayer player
+    maybeWinners = snd (rankTriples board player)
+    maybeLosers = snd (rankTriples board opponent)
+    -- this really should pick the 'best' unplayed corner
+    unplayedCorner = pickUnplayedSquareUsing [1,3,7,9] board
+    unplayedSquare = pickUnplayedSquare board
 
 
+
+-- order triples by how 'good' they are for player Char
+rankTriples :: Board -> Char ->  (Char, [[Square]])
+rankTriples board player = (player, (sortBy  (rankSqLists player) (playableTriples board)) )
+
+-- by list with most occurences of 'player' ... descending
+rankSqLists :: Char -> [Square] -> [Square] -> Ordering
+rankSqLists player first second
+  | ticCount player first > ticCount player second = LT
+  | otherwise = GT
+
+playableTriples :: Board -> [[Square]]
+playableTriples board = filter hasUnplayed (winningTriples board)
+
+winningTriples :: Board -> [[Square]]
+winningTriples board = map (\w -> extractSquares board w) winners
+  where  winners = [[1,2,3], [4,5,6], [7,8,9], [1,5,9], [3,5,7]]
+
+-- extract squares with supplied positions
+extractSquares :: Board -> [Int] -> [Square]
+extractSquares board sqs =  map (\n -> board !! (n-1)) sqs
+
+-- from a list of squares, return the 1st unticked one
+pickUnplayedSquare :: [Square] -> Square
+pickUnplayedSquare squares
+  | length sqs == 0 = (-1, ' ')
+  | otherwise = head sqs
+  where sqs = filter (\sq -> isUnplayed sq) squares
+
+--- given a list of postions & squares
+--- select unticked ones with matching positions & return first one
+--- will return a phony square if there aren't any, so need to check this if relevant
+--- and it doesn't prioritise the list of positions (but it really should)
+pickUnplayedSquareUsing :: [Int] -> [Square] -> Square
+pickUnplayedSquareUsing search squares
+  | length subset == 0 = (-1, ' ')
+  | otherwise = head subset
+  where subset = filter (\sq -> (elem (fst sq) search) && isUnplayed sq) squares
+
+
+ticCount :: Char -> [Square] -> Int
+ticCount player squares = length $ filter (\a -> snd a == player) squares
+
+ticSquare :: Char -> Square -> Square
+ticSquare char square = (fst square, char)
+
+otherPlayer :: Char -> Char
+otherPlayer p
+  | p == 'o' = 'x'
+  | p == 'x' = 'o'
+  | otherwise = ' '
+
+hasUnplayed :: [Square] -> Bool
+hasUnplayed squares = length (filter (\sq -> snd sq == ' ') squares) > 0
+
+isUnplayed :: Square -> Bool
+isUnplayed square = snd square == ' '
+
+isPhony :: Square -> Bool
+isPhony square = (fst square) < 1 || (fst square) > 9 || not ((elem (snd square) [' ','x','o']))
