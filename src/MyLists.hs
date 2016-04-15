@@ -19,7 +19,7 @@ interl a (x: xs) =
 permu :: [a] -> [[a]]
 permu [] = [[]]
 permu [x] = [[x]]
-permu (x:xs) = concat (map (interleave x) (permu xs))
+permu (x:xs) = concat (map (interl x) (permu xs))
 
 
 partit :: [a] -> [[[a]]]
