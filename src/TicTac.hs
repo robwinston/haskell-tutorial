@@ -9,8 +9,8 @@ type Board = [Square]
 
 -- self-playing game with rudimentary smarts
 
--- every autoPlay game's a draw
--- or (map aWinner (map autoPlayFrom [1..9]))  == False
+-- not every autoPlay game's a draw ... so work to be done
+-- or (map aWinner (map autoPlayFrom [1..9]))  == True
 autoPlayFrom :: Int -> Board
 autoPlayFrom start = autoPlay (move (start, player) board)
   where board = newBoard
@@ -135,7 +135,7 @@ playableTriples board = filter hasUnplayed (winningTriples board)
 
 winningTriples :: Board -> [[Square]]
 winningTriples board = map (\w -> extractSquares board w) winners
-  where  winners = [[1,2,3], [4,5,6], [7,8,9], [1,5,9], [3,5,7]]
+  where  winners = [[1,2,3], [4,5,6], [7,8,9], [1,4,7], [2,5,8], [3,6,9], [1,5,9], [3,5,7]]
 
 -- extract squares with supplied positions
 extractSquares :: Board -> [Int] -> [Square]
