@@ -21,21 +21,21 @@ autoPlay :: Board -> Board
 autoPlay board = autoPlayUsing smarterMove board
 
 {-
--- failure to pick "best" option is a problem when starting at "numerical" end of board
-ghci> map aWinner $ map (autoPlayFromUsing smartMove) [1..9]
-[False,False,False,False,False,False,False,True,True]
-
--- hmm, attempt at improvement just moved the problem
-ghci> map aWinner $ map (autoPlayFromUsing smarterMove) [1..9]
-[False,False,True,False,False,True,False,False,False]
-
+Looks like "smarter" isn't - or maybe it makes players a bit better at offence, but not defence, so because x is 1st player it wins one?
+ghci> map theWinner $ map (autoPlayFromUsing smartMove) [1..9]
+"/////////"
+ghci> map theWinner $ map (autoPlayFromUsing smarterMove) [1..9]
+"///////x/"
+ghci>
 -}
 
+-- autoPlay a game, but pick starting move
 autoPlayFromUsing :: (Board -> Board) -> Position -> Board
 autoPlayFromUsing strategy start = autoPlayUsing strategy (move (start, player) board)
   where board = newBoard
         player = whosMove board
 
+-- autoPlay a game, using supplied board which may or may not have moves already made
 autoPlayUsing :: (Board -> Board) -> Board -> Board
 autoPlayUsing strategy board
   | aWinner nextBoard = nextBoard
@@ -77,20 +77,13 @@ smartMove board
     possibleLosers = snd (rankTriples board opponent)
     unplayedSquare = pickUnplayedSquare board
 
+-- from a list of squares, return the 1st unticked one of highest rank (or Nothing)
+pickUnplayedSquare :: [Square] -> Maybe Square
+pickUnplayedSquare squares
+  | length sqs == 0 = Nothing
+  | otherwise = Just (head $ rankSquares sqs)
+  where sqs = filter (\sq -> isUnplayed sq) squares
 
--- play pre-defined game # n, return the board when game ends
--- 362,880 possible game sequences (although there's only 26,830 distinct games)
-playGame :: Int -> Board
-playGame n =  snd (moveThrough (game, newBoard))
-  where game = permu [1..9] !! mod n 362880
-
--- given a sequence of moves & a board,
--- play until someone wins or no more moves
-moveThrough :: ([Position], Board) -> ([Position], Board)
-moveThrough (moves, board)
-  | length moves == 0 = (moves, board)
-  | aWinner board = (moves, board)
-  | otherwise = moveThrough (tail moves, (nextMove (head moves) board))
 
 -- given a position, tic for next player
 -- ignore if square is occupied
@@ -215,9 +208,9 @@ rankPosition p1 p2
   | elem p2 [1,3,7,9] = GT
   | otherwise = EQ
 
+
 playableTriples :: Board -> [[Square]]
 playableTriples board = filter hasUnplayed (winningTriples board)
-
 
 -- given a board, return its winning combos
 winningTriples :: Board -> [[Square]]
@@ -228,43 +221,9 @@ winningTriples board = map (\w -> squaresFor board w) winners
 winnersFor :: Position -> Board -> [[Square]]
 winnersFor position board = (filter (\w -> elem position (map fst w))) (winningTriples board)
 
--- square with supplied position
--- this is meant to be the only place where board index == position - 1 matters
-squareFor :: Board -> Position -> Square
-squareFor b p =  b !! (p-1)
-
--- squares with supplied positions
-squaresFor :: Board -> [Position] -> [Square]
-squaresFor b ps =  map (squareFor b) ps
-
-firstSquare :: Board -> [Position] -> Maybe Square
-firstSquare b ps
- | length ps == 0 = Nothing
- | otherwise = Just (squareFor b (head ps))
-
-
--- from a list of squares, return the 1st unticked one of highest rank (or Nothing)
-pickUnplayedSquare :: [Square] -> Maybe Square
-pickUnplayedSquare squares
-  | length sqs == 0 = Nothing
-  | otherwise = Just (head $ rankSquares sqs)
-  where sqs = filter (\sq -> isUnplayed sq) squares
-
---- given list of postions & list of squares
---- select unticked squares with matching positions & return first one of highest rank (or Nothing)
-pickUnplayedSquareUsing :: [Int] -> [Square] -> Maybe Square
-pickUnplayedSquareUsing search squares
-  | length subset == 0 = Nothing
-  | otherwise = Just (head $ rankSquares subset)
-  where subset = filter (\sq -> (elem (fst sq) search) && isUnplayed sq) squares
-
 -- weights a collection of "rows", by summing player's tics for those rows not occuped by opponent
 ticCountSumUseful :: Player -> [[Square]] -> Int
-ticCountSumUseful player sqls = foldr (+) 0 (map (ticCount player) (filter (isUnplayedBy (otherPlayer player)) sqls))
-
--- weights a collection of "rows", by summing player's tics
-ticCountSum :: Player -> [[Square]] -> Int
-ticCountSum player sqls = foldr (+) 0 (map (ticCount player) sqls)
+ticCountSumUseful player sqls = foldr (+) 0 (map (ticCount player) (filter (isUnplayedFor (otherPlayer player)) sqls))
 
 ticCount :: Player -> [Square] -> Int
 ticCount player squares = length $ filter (\a -> snd a == player) squares
@@ -278,22 +237,49 @@ ticSquareMaybe p msq
 ticSquare :: Player -> Square -> Square
 ticSquare char square = (fst square, char)
 
+-- squares with supplied positions
+squaresFor :: Board -> [Position] -> [Square]
+squaresFor b ps =  map (squareFor b) ps
+
+-- square with supplied position
+-- this is meant to be the only place where board index == position - 1 matters
+squareFor :: Board -> Position -> Square
+squareFor b p =  b !! (p-1)
+
 otherPlayer :: Player -> Player
 otherPlayer p
   | p == 'o' = 'x'
   | p == 'x' = 'o'
   | otherwise = ' '
 
-
-isUnplayedBy :: Player -> [Square] -> Bool
-isUnplayedBy p squares = length (filter (\sq -> snd sq == p) squares) == 0
+isUnplayedFor :: Player -> [Square] -> Bool
+isUnplayedFor p squares = length (filter (\sq -> snd sq == p) squares) == 0
 
 hasUnplayed :: [Square] -> Bool
 hasUnplayed squares = length (filter (\sq -> snd sq == ' ') squares) > 0
 
+isUnplayedPosition :: Board -> Position -> Bool
+isUnplayedPosition b p = isUnplayed (squareFor b p)
+
 isUnplayed :: Square -> Bool
 isUnplayed square = snd square == ' '
 
-isUnplayedPosition :: Board -> Position -> Bool
-isUnplayedPosition b p = isUnplayed (squareFor b p)
+
+-- play a supplied sequence of moves, alternating players
+playMoves :: [Int] -> Board
+playMoves ps =  snd (moveThrough (ps, newBoard))
+
+-- play pre-defined game # n, return the board when game ends
+-- 362,880 possible game sequences (although there's only 26,830 distinct games)
+playGame :: Int -> Board
+playGame n =  snd (moveThrough (game, newBoard))
+  where game = permu [1..9] !! mod n 362880
+
+-- given a sequence of moves & a board,
+-- play until someone wins or no more moves
+moveThrough :: ([Position], Board) -> ([Position], Board)
+moveThrough (moves, board)
+  | length moves == 0 = (moves, board)
+  | aWinner board = (moves, board)
+  | otherwise = moveThrough (tail moves, (nextMove (head moves) board))
 
