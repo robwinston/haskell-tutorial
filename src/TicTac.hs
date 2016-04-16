@@ -12,20 +12,50 @@ type Intersection = (Position, [[Square]])
 
 -- self-playing game with rudimentary smarts
 
--- (map aWinner (map autoPlayFrom [1..10]))
--- [False,False,False,False,False,False,False,True,True,True]
--- this shows how failure to pick "best" option is a problem when starting at "numerical" end of board
 autoPlayFrom :: Position -> Board
 autoPlayFrom start = autoPlay (move (start, player) board)
   where board = newBoard
         player = whosMove board
 
 autoPlay :: Board -> Board
-autoPlay board
+autoPlay board = autoPlayUsing smarterMove board
+
+{-
+-- failure to pick "best" option is a problem when starting at "numerical" end of board
+ghci> map aWinner $ map (autoPlayFromUsing smartMove) [1..9]
+[False,False,False,False,False,False,False,True,True]
+
+-- hmm, attempt at improvement just moved the problem
+ghci> map aWinner $ map (autoPlayFromUsing smarterMove) [1..9]
+[False,False,True,False,False,True,False,False,False]
+
+-}
+
+autoPlayFromUsing :: (Board -> Board) -> Position -> Board
+autoPlayFromUsing strategy start = autoPlayUsing strategy (move (start, player) board)
+  where board = newBoard
+        player = whosMove board
+
+autoPlayUsing :: (Board -> Board) -> Board -> Board
+autoPlayUsing strategy board
   | aWinner nextBoard = nextBoard
   | not $ hasUnplayed nextBoard = nextBoard
-  | otherwise = autoPlay nextBoard
-  where nextBoard = smartMove board
+  | otherwise = autoPlayUsing strategy nextBoard
+  where nextBoard = strategy board
+
+
+-- given a board, try to make best move
+-- streamlined strategy ... this will autoplay every starting position to a draw
+-- remains to be seen if a human can outsmart it  ...
+smarterMove :: Board -> Board
+smarterMove board
+  | isJust unplayedSquare = move (ticSquare player (fromJust unplayedSquare)) board
+  | otherwise = board
+  where  player = whosMove board
+         opponent = otherPlayer player
+         possibleWinners = snd (rankTriples board player)
+         possibleLosers = snd (rankTriples board opponent)
+         unplayedSquare = bestUnplayedSquare board player
 
 
 -- given a board, try to make best move
@@ -33,9 +63,9 @@ autoPlay board
 smartMove :: Board -> Board
 smartMove board
   -- does current player have a winner? - take it
-  | length maybeWinners > 0 && ticCount player (head maybeWinners)  == 2  = moveMaybe (ticSquareMaybe player (pickUnplayedSquare (head maybeWinners))) board
+  | length possibleWinners > 0 && ticCount player (head possibleWinners)  == 2  = moveMaybe (ticSquareMaybe player (pickUnplayedSquare (head possibleWinners))) board
   -- does opponent have a winner? - block it
-  | length maybeLosers > 0 && ticCount opponent (head maybeLosers)  == 2  = moveMaybe (ticSquareMaybe player (pickUnplayedSquare (head maybeLosers))) board
+  | length possibleLosers > 0 && ticCount opponent (head possibleLosers)  == 2  = moveMaybe (ticSquareMaybe player (pickUnplayedSquare (head possibleLosers))) board
   -- find the first-by-rank open square & play it
   | isJust unplayedSquare = move (ticSquare player (fromJust unplayedSquare)) board
   -- nothing to do
@@ -43,8 +73,8 @@ smartMove board
   where
     player = whosMove board
     opponent = otherPlayer player
-    maybeWinners = snd (rankTriples board player)
-    maybeLosers = snd (rankTriples board opponent)
+    possibleWinners = snd (rankTriples board player)
+    possibleLosers = snd (rankTriples board opponent)
     unplayedSquare = pickUnplayedSquare board
 
 
@@ -93,6 +123,12 @@ winner c b =  or $ map (\w -> isInfixOf w ticked) winners
   where ticked = map fst (filter (\sq -> snd sq == c) b)
         winners = [[1,2,3], [4,5,6], [7,8,9], [1,5,9], [3,5,7]]
 
+theWinner :: Board -> Player
+theWinner board
+  | winner /= ' ' = winner
+  | otherwise = '/'
+  where winner = fst $ whoWon board
+
 aWinner :: Board -> Bool
 aWinner board = fst (whoWon board) /= ' '
 
@@ -118,13 +154,33 @@ whosMove b
 newBoard :: Board
 newBoard = map (\i -> (i, ' ')) [1..9]
 
--- returns unplayed positions by most tics for player in its intersections
+
+bestUnplayedSquare :: Board -> Player -> Maybe Square
+bestUnplayedSquare b p
+ | length possiblePositions == 0 = Nothing
+ | otherwise = Just (squareFor b (head possiblePositions))
+ where possiblePositions = rankUnplayedPositions b p
+
+-- returns unplayed positions ranked by most tics for player in its intersections
 rankUnplayedPositions :: Board -> Player -> [Position]
-rankUnplayedPositions b p = filter (isUnplayedPosition b) $ map snd $ reverse $ sort $ map (\i -> ((ticCountSum p $ snd $ i), (fst i))) (byIntersections b)
+rankUnplayedPositions b p =
+ map fst (sortBy (rankIntersectionFor p) (byIntersectionsUnplayed b))
+  -- map snd $ reverse $ sort $ map (\i -> ((ticCountSumUseful p $ snd $ i), (fst i))) (byIntersectionsUnplayed b)
 
+-- if one intersection has more player ticks, it's better
+-- if they're the same, rank by their position
+-- ... all descending, which is why they look backwards
+-- avoids (albeit minor in this case) reverse expense ... because I never want them ascending
+rankIntersectionFor :: Player -> Intersection -> Intersection -> Ordering
+rankIntersectionFor p i1 i2
+  | i1Score > i2Score = LT
+  | i1Score < i2Score = GT
+  | i1Score == i2Score = rankPosition (fst i1) (fst i2)
+  where i1Score = ticCountSumUseful p (snd i1)
+        i2Score = ticCountSumUseful p (snd i2)
 
-ticCountSum :: Player -> [[Square]] -> Int
-ticCountSum player sqls = foldr (+) 0 (map (ticCount player) sqls)
+byIntersectionsUnplayed :: Board -> [Intersection]
+byIntersectionsUnplayed b =  filter (\i -> isUnplayedPosition b (fst i)) (byIntersections b)
 
 -- organise a board by the interesections for each position
 byIntersections :: Board -> [Intersection]
@@ -139,24 +195,25 @@ rankTriples board player = (player, (sortBy  (rankSqLists player) (playableTripl
 rankSqLists :: Player -> [Square] -> [Square] -> Ordering
 rankSqLists player first second
   | ticCount player first > ticCount player second = LT
-  | otherwise = GT
+  | ticCount player first < ticCount player second = GT
+  | otherwise = EQ
 
 -- order squares by "rank" descending
 rankSquares :: [Square] -> [Square]
 rankSquares squares = sortBy rankSquare squares
 
--- by "value" of square ... descending (compare is backwards)
--- centre -> a corner -> something else
 rankSquare :: Square -> Square -> Ordering
-rankSquare sq1 sq2
+rankSquare sq1 sq2 = rankPosition (fst sq1) (fst sq2)
+
+-- by "value" of a position ... descending (compare is backwards)
+-- centre -> a corner -> something else
+rankPosition :: Position -> Position -> Ordering
+rankPosition p1 p2
   | p1 == 5 = LT
   | p2 == 5 = GT
   | elem p1 [1,3,7,9] = LT
   | elem p2 [1,3,7,9] = GT
-  | otherwise = GT
-  where p1 = fst sq1
-        p2 = fst sq2
-
+  | otherwise = EQ
 
 playableTriples :: Board -> [[Square]]
 playableTriples board = filter hasUnplayed (winningTriples board)
@@ -186,8 +243,7 @@ firstSquare b ps
  | otherwise = Just (squareFor b (head ps))
 
 
--- from a list of squares, return the 1st unticked one of highest rank
---- will return a phony square if there aren't any, so caller needs to check what's returned
+-- from a list of squares, return the 1st unticked one of highest rank (or Nothing)
 pickUnplayedSquare :: [Square] -> Maybe Square
 pickUnplayedSquare squares
   | length sqs == 0 = Nothing
@@ -195,14 +251,20 @@ pickUnplayedSquare squares
   where sqs = filter (\sq -> isUnplayed sq) squares
 
 --- given list of postions & list of squares
---- select unticked squares with matching positions & return first one of highest rank
---- will return a phony square if there aren't any, so caller needs to check what's returned
+--- select unticked squares with matching positions & return first one of highest rank (or Nothing)
 pickUnplayedSquareUsing :: [Int] -> [Square] -> Maybe Square
 pickUnplayedSquareUsing search squares
   | length subset == 0 = Nothing
   | otherwise = Just (head $ rankSquares subset)
   where subset = filter (\sq -> (elem (fst sq) search) && isUnplayed sq) squares
 
+-- weights a collection of "rows", by summing player's tics for those rows not occuped by opponent
+ticCountSumUseful :: Player -> [[Square]] -> Int
+ticCountSumUseful player sqls = foldr (+) 0 (map (ticCount player) (filter (isUnplayedBy (otherPlayer player)) sqls))
+
+-- weights a collection of "rows", by summing player's tics
+ticCountSum :: Player -> [[Square]] -> Int
+ticCountSum player sqls = foldr (+) 0 (map (ticCount player) sqls)
 
 ticCount :: Player -> [Square] -> Int
 ticCount player squares = length $ filter (\a -> snd a == player) squares
@@ -221,6 +283,10 @@ otherPlayer p
   | p == 'o' = 'x'
   | p == 'x' = 'o'
   | otherwise = ' '
+
+
+isUnplayedBy :: Player -> [Square] -> Bool
+isUnplayedBy p squares = length (filter (\sq -> snd sq == p) squares) == 0
 
 hasUnplayed :: [Square] -> Bool
 hasUnplayed squares = length (filter (\sq -> snd sq == ' ') squares) > 0
