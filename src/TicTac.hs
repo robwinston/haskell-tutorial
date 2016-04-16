@@ -10,7 +10,9 @@ type Square = (Position, Player)
 type Board = [Square]
 type Intersection = (Position, [[Square]])
 
--- self-playing game with rudimentary smarts
+
+playAllUsingWinners :: (Board -> Board) -> String
+playAllUsingWinners strategy = map theWinner $ map (autoPlayFromUsing strategy) [1..9]
 
 autoPlayFrom :: Position -> Board
 autoPlayFrom start = autoPlay (move (start, player) board)
@@ -21,13 +23,35 @@ autoPlay :: Board -> Board
 autoPlay board = autoPlayUsing smarterMove board
 
 {-
-Looks like "smarter" isn't - or maybe it makes players a bit better at offence, but not defence, so because x is 1st player it wins one?
-ghci> map theWinner $ map (autoPlayFromUsing smartMove) [1..9]
+both strategies play to draw against self,
+but I think "smarterMove" can hold its own against a human being
+... will test when add IO to mix
+ghci> playAllUsingWinners smarterMove
+"/////////"  <- '/' means it's a draw (theWinner function does this)
+ghci> playAllUsingWinners smartMove
 "/////////"
-ghci> map theWinner $ map (autoPlayFromUsing smarterMove) [1..9]
-"///////x/"
 ghci>
 -}
+
+
+-- summariseGame :: [[Board]] -> [Square]
+-- summariseGame boards =
+
+-- autoPlay a game, but pick starting move
+-- keep track of play as it proceeds
+autoPlayFromUsingTrack :: (Board -> Board) -> Position -> [Board]
+autoPlayFromUsingTrack strategy start = autoPlayUsingTrack strategy ([move (start, player) board])
+  where board = newBoard
+        player = whosMove board
+
+-- autoPlay a game, using first of supplied boards which may or may not have moves already made
+-- keep adding boards to list as game play proceeds
+autoPlayUsingTrack :: (Board -> Board) -> [Board] -> [Board]
+autoPlayUsingTrack strategy boards
+  | aWinner nextBoard = nextBoard : boards
+  | not $ hasUnplayed nextBoard = nextBoard : boards
+  | otherwise = autoPlayUsingTrack strategy (nextBoard : boards)
+  where nextBoard = strategy $ head boards
 
 -- autoPlay a game, but pick starting move
 autoPlayFromUsing :: (Board -> Board) -> Position -> Board
@@ -49,6 +73,8 @@ autoPlayUsing strategy board
 -- remains to be seen if a human can outsmart it  ...
 smarterMove :: Board -> Board
 smarterMove board
+  -- does opponent have a winner? - block it
+  -- | length possibleLosers > 0 && ticCount opponent (head possibleLosers)  == 2  = moveMaybe (ticSquareMaybe player (pickUnplayedSquare (head possibleLosers))) board
   | isJust unplayedSquare = move (ticSquare player (fromJust unplayedSquare)) board
   | otherwise = board
   where  player = whosMove board
@@ -158,9 +184,15 @@ bestUnplayedSquare b p
 rankUnplayedPositions :: Board -> Player -> [Position]
 rankUnplayedPositions b p =
  map fst (sortBy (rankIntersectionFor p) (byIntersectionsUnplayed b))
-  -- map snd $ reverse $ sort $ map (\i -> ((ticCountSumUseful p $ snd $ i), (fst i))) (byIntersectionsUnplayed b)
 
--- if one intersection has more player ticks, it's better
+-- writing this for debugging purposes
+scoreUnplayedPositions :: Board -> Player -> [(Position, Int)]
+scoreUnplayedPositions b p = map (iscore p) (byIntersectionsUnplayed b)
+
+iscore :: Player -> Intersection -> (Position, Int)
+iscore p i = (fst i, scoreIntersectionFor p i)
+
+-- if one intersection has a better score, it's better
 -- if they're the same, rank by their position
 -- ... all descending, which is why they look backwards
 -- avoids (albeit minor in this case) reverse expense ... because I never want them ascending
@@ -169,8 +201,45 @@ rankIntersectionFor p i1 i2
   | i1Score > i2Score = LT
   | i1Score < i2Score = GT
   | i1Score == i2Score = rankPosition (fst i1) (fst i2)
-  where i1Score = ticCountSumUseful p (snd i1)
-        i2Score = ticCountSumUseful p (snd i2)
+  where i1Score = scoreIntersectionFor p i1
+        i2Score = scoreIntersectionFor p i2
+
+scoreIntersectionFor :: Player -> Intersection -> Int
+scoreIntersectionFor p i
+ -- has an about to win
+ | length (filter (\r -> ticCount p r == 2) rows) > 0 = 12
+ -- has an about to lose
+ | length (filter (\r -> ticCount o r == 2) rows) > 0 = 11
+ -- it's an open corner & opponent occupies opposite corner
+ -- (if ticked by opponent, creates two magic corners, making a block impossible)
+ | elem position [1,3,7,9] && snd (squareAt opposition rows) == otherPlayer p = 10
+ -- is a "magic corner", i.e. has two rows with tics
+ | length (filter (\r -> ticCount p r == 1) rows) > 1 = 9
+ -- is an opponent's "magic corner"
+ | length (filter (\r -> ticCount o r == 1) rows) > 1 = 8
+ -- is centre or corner with "connected" tics for opponent
+ | elem position [1,3,5,7,9] && length (filter (\r -> ticCount o r == 1) rows) > 0 = 7
+ -- is centre or corner with "connected" tics for self
+ | elem position [1,3,5,7,9] && length (filter (\r -> ticCount p r == 1) rows) > 0 = 6
+ -- is the centre
+ | position == 5 = 5
+ -- is a corner
+ | elem position [1,3,7,9] = 4
+ -- otherwise, sum unblocked ticks, at this point, will always be 2 or less
+ -- haven't  "formally" checked whether or not this is ever reached, suspect not
+ | otherwise = ticCountSumUseful p rows
+ where rows = snd i
+       position = fst i
+       opposition = 10 - position  -- "opposite position"
+       o = otherPlayer p
+       squareAt :: Position -> [[Square]] -> Square
+       squareAt  p lsqs = head $ filter (\i -> fst i == p) sqs
+         where sqs = concat lsqs
+
+
+-- util f to index a square out of an intersection's "triples"
+-- caller knows it will be there, so doesn't protect
+
 
 byIntersectionsUnplayed :: Board -> [Intersection]
 byIntersectionsUnplayed b =  filter (\i -> isUnplayedPosition b (fst i)) (byIntersections b)
