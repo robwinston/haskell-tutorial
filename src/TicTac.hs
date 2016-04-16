@@ -7,10 +7,13 @@ type Square = (Int, Char)
 
 type Board = [Square]
 
+type Intersection = (Int, [[Square]])
+
 -- self-playing game with rudimentary smarts
 
--- not every autoPlay game's a draw ... so work to be done
--- or (map aWinner (map autoPlayFrom [1..9]))  == True
+-- (map aWinner (map autoPlayFrom [1..10]))
+-- [False,False,False,False,False,False,False,True,True,True]
+-- this shows how failure to pick "best" option is a problem when starting at "numerical" end of board
 autoPlayFrom :: Int -> Board
 autoPlayFrom start = autoPlay (move (start, player) board)
   where board = newBoard
@@ -24,32 +27,23 @@ autoPlay board
   where nextBoard = smartMove board
 
 
-
 -- given a board, try to make best move
 -- initial simplistic logic ....
--- does current player have a winner? - take it
--- does opponent have a winner? - block it
--- is the centre free? - take it <- this isn't always better than a corner
--- is a corner free? - take it   <- but doesn't pick the best corner
--- find the first open square & play it <- but doesn't pick the best space left
 smartMove :: Board -> Board
 smartMove board
+  -- does current player have a winner? - take it
   | length maybeWinners > 0 && ticCount player (head maybeWinners)  == 2  = move (ticSquare player (pickUnplayedSquare (head maybeWinners))) board
+  -- does opponent have a winner? - block it
   | length maybeLosers > 0 && ticCount opponent (head maybeLosers)  == 2  = move (ticSquare player (pickUnplayedSquare (head maybeLosers))) board
-  -- posotions are sequenced from one,
-  -- makes it slightly easier to visualise elsewhere, but also a bit confusing in places like this
-  | isUnplayed (board !! 4) = move (5, player) board
-  | not $ isPhony unplayedCorner = move (ticSquare player unplayedCorner) board
+  -- find the first-by-rank open square & play it
   | not $ isPhony unplayedSquare = move (ticSquare player unplayedSquare) board
+  -- nothing to do
   | otherwise = board
   where
     player = whosMove board
     opponent = otherPlayer player
     maybeWinners = snd (rankTriples board player)
     maybeLosers = snd (rankTriples board opponent)
-    -- this really should pick the 'best' unplayed corner
-    unplayedCorner = pickUnplayedSquareUsing [1,3,7,9] board
-    -- ditto
     unplayedSquare = pickUnplayedSquare board
 
 
@@ -70,10 +64,10 @@ moveThrough (moves, board)
 -- given a position, tic for next player
 -- ignore if square is occupied
 nextMove :: Int -> Board -> Board
-nextMove position board
-  | snd (board !! (position - 1)) /= ' ' = board
-  | otherwise = move (position, player) board
-  where player = whosMove board
+nextMove p b
+  | not $ (isUnplayed $ squareFor b p) = b
+  | otherwise = move (p, player) b
+  where player = whosMove b
 
 move :: Square -> Board -> Board
 move square board
@@ -118,44 +112,89 @@ whosMove b
 newBoard :: Board
 newBoard = map (\i -> (i, ' ')) [1..9]
 
+-- returns unplayed positions by most tics for player in its intersections
+rankUnplayedPositions :: Board -> Char -> [Int]
+rankUnplayedPositions b p = filter (isUnplayedPosition b) $ map snd $ reverse $ sort $ map (\i -> ((ticCountSum p $ snd $ i), (fst i))) (byIntersections b)
+
+
+ticCountSum :: Char -> [[Square]] -> Int
+ticCountSum player sqls = foldr (+) 0 (map (ticCount player) sqls)
+
+-- organise a board by the interesections for each position
+byIntersections :: Board -> [Intersection]
+byIntersections  board = map (\p -> (p, winnersFor p board)) [1..9]
 
 
 -- order triples by how 'good' they are for player Char
 rankTriples :: Board -> Char ->  (Char, [[Square]])
 rankTriples board player = (player, (sortBy  (rankSqLists player) (playableTriples board)) )
 
--- by list with most occurences of 'player' ... descending
+-- by list with most occurences of 'player' ... descending (compare is backwards)
 rankSqLists :: Char -> [Square] -> [Square] -> Ordering
 rankSqLists player first second
   | ticCount player first > ticCount player second = LT
   | otherwise = GT
 
+-- order squares by "rank" descending
+rankSquares :: [Square] -> [Square]
+rankSquares squares = sortBy rankSquare squares
+
+-- by "value" of square ... descending (compare is backwards)
+-- centre -> a corner -> something else
+rankSquare :: Square -> Square -> Ordering
+rankSquare sq1 sq2
+  | p1 == 5 = LT
+  | p2 == 5 = GT
+  | elem p1 [1,3,7,9] = LT
+  | elem p2 [1,3,7,9] = GT
+  | otherwise = GT
+  where p1 = fst sq1
+        p2 = fst sq2
+
+
 playableTriples :: Board -> [[Square]]
 playableTriples board = filter hasUnplayed (winningTriples board)
 
+
+-- given a board, return its winning combos
 winningTriples :: Board -> [[Square]]
-winningTriples board = map (\w -> extractSquares board w) winners
+winningTriples board = map (\w -> squaresFor board w) winners
   where  winners = [[1,2,3], [4,5,6], [7,8,9], [1,4,7], [2,5,8], [3,6,9], [1,5,9], [3,5,7]]
 
--- extract squares with supplied positions
-extractSquares :: Board -> [Int] -> [Square]
-extractSquares board sqs =  map (\n -> board !! (n-1)) sqs
+-- given a position & board, return postion's winning combos from board
+winnersFor :: Int -> Board -> [[Square]]
+winnersFor position board = (filter (\w -> elem position (map fst w))) (winningTriples board)
 
--- from a list of squares, return the 1st unticked one
+-- square with supplied position
+-- this is meant to be the only place where board index == position - 1 matters
+squareFor :: Board -> Int -> Square
+squareFor b p =  b !! (p-1)
+
+-- squares with supplied positions
+squaresFor :: Board -> [Int] -> [Square]
+squaresFor b ps =  map (squareFor b) ps
+
+firstSquare :: Board -> [Int] -> Maybe Square
+firstSquare b ps
+ | length ps == 0 = Nothing
+ | otherwise = Just (squareFor b (head ps))
+
+
+-- from a list of squares, return the 1st unticked one of highest rank
+--- will return a phony square if there aren't any, so caller needs to check what's returned
 pickUnplayedSquare :: [Square] -> Square
 pickUnplayedSquare squares
   | length sqs == 0 = (-1, ' ')
-  | otherwise = head sqs
+  | otherwise = head $ rankSquares sqs
   where sqs = filter (\sq -> isUnplayed sq) squares
 
---- given a list of postions & squares
---- select unticked ones with matching positions & return first one
---- will return a phony square if there aren't any, so need to check this if relevant
---- and it doesn't prioritise the list of positions (but it really should)
+--- given list of postions & list of squares
+--- select unticked squares with matching positions & return first one of highest rank
+--- will return a phony square if there aren't any, so caller needs to check what's returned
 pickUnplayedSquareUsing :: [Int] -> [Square] -> Square
 pickUnplayedSquareUsing search squares
   | length subset == 0 = (-1, ' ')
-  | otherwise = head subset
+  | otherwise = head $ rankSquares subset
   where subset = filter (\sq -> (elem (fst sq) search) && isUnplayed sq) squares
 
 
@@ -177,5 +216,9 @@ hasUnplayed squares = length (filter (\sq -> snd sq == ' ') squares) > 0
 isUnplayed :: Square -> Bool
 isUnplayed square = snd square == ' '
 
+isUnplayedPosition :: Board -> Int -> Bool
+isUnplayedPosition b p = isUnplayed (squareFor b p)
+
+-- this whole bit of logic & everyone employing it needs refactoring to  use Maybe ...
 isPhony :: Square -> Bool
 isPhony square = (fst square) < 1 || (fst square) > 9 || not ((elem (snd square) [' ','x','o']))
