@@ -4,7 +4,9 @@ import Data.List
 import Data.Maybe
 import MyLists
 
-type Player = Char
+data Player = X | O | N
+  deriving (Eq, Show)
+
 type Position = Int
 type Square = (Position, Player)
 type Board = [Square]
@@ -22,7 +24,7 @@ ghci> playAllUsingWinners smartMove
 ghci>
 -}
 
-playAllUsingWinners :: (Board -> Board) -> String
+playAllUsingWinners :: (Board -> Board) -> [Player]
 playAllUsingWinners strategy = map theWinner $ map (autoPlayFromUsing strategy) [1..9]
 
 autoPlayFrom :: Position -> Board
@@ -231,13 +233,13 @@ isUnplayedFor :: Player -> [Square] -> Bool
 isUnplayedFor p squares = length (filter (\sq -> snd sq == p) squares) == 0
 
 hasUnplayed :: [Square] -> Bool
-hasUnplayed squares = length (filter (\sq -> snd sq == ' ') squares) > 0
+hasUnplayed squares = length (filter (\sq -> snd sq == N) squares) > 0
 
 isUnplayedPosition :: Board -> Position -> Bool
 isUnplayedPosition b p = isUnplayed (squareFor b p)
 
 isUnplayed :: Square -> Bool
-isUnplayed square = snd square == ' '
+isUnplayed square = snd square == N
 
 -- \ square state functions
 
@@ -245,7 +247,7 @@ isUnplayed square = snd square == ' '
 -- / board state functions
 
 newBoard :: Board
-newBoard = map (\i -> (i, ' ')) [1..9]
+newBoard = map (\i -> (i, N)) [1..9]
 
 playableTriples :: Board -> [[Square]]
 playableTriples board = filter hasUnplayed (winningTriples board)
@@ -275,16 +277,16 @@ theWinner :: Board -> Player
 theWinner board = fst $ whoWonMoves board
 
 aWinner :: Board -> Bool
-aWinner board = theWinner board /= '/'
+aWinner board = theWinner board /= N
 
 -- who won & how many moves it took
 --  ('/',9) == a draw
 --  ('/', [0..8]) == an unfinished game
-whoWonMoves :: Board -> (Char, Int)
+whoWonMoves :: Board -> (Player, Int)
 whoWonMoves b
- | winner b 'x' = ('x', m)
- | winner b 'o' = ('o', m)
- | otherwise = ('/', m)
+ | winner b X = (X, m)
+ | winner b O = (O, m)
+ | otherwise = (N, m)
  where m = 9 - length (unplayedSquares b)
 
 -- give all moves made by winning player, not just winning sequence
@@ -296,20 +298,20 @@ howWon board = (winner, map fst squares)
 -- if board is empty, assumes 'x' plays first ...
 whosMove :: Board -> Player
 whosMove b
- | movesLeft == 0 = ' '
- | mod movesLeft 2 == 0 = 'o'
- | otherwise = 'x'
+ | movesLeft == 0 = N
+ | mod movesLeft 2 == 0 = O
+ | otherwise = X
  where movesLeft = length (unplayedSquares b)
 
 unplayedSquares :: [Square] -> [Square]
-unplayedSquares b = filter (\sq -> snd sq == ' ') b
+unplayedSquares b = filter (\sq -> snd sq == N) b
 
 
 otherPlayer :: Player -> Player
 otherPlayer p
-  | p == 'o' = 'x'
-  | p == 'x' = 'o'
-  | otherwise = ' '
+  | p == O = X
+  | p == X = O
+  | otherwise = N
 
 -- \ board state functions
 
