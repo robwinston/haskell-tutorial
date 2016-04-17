@@ -344,7 +344,7 @@ move square board
 -- / programmed play ... useful for testing
 
 -- play a supplied sequence of moves, alternating players
-playMoves :: [Int] -> Board
+playMoves :: [Position] -> Board
 playMoves ps =  snd (moveThrough (ps, newBoard))
 
 -- play pre-defined game # n, return the board when game ends
