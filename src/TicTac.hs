@@ -8,9 +8,27 @@ data Player = X | O | N
   deriving (Eq, Show)
 
 type Position = Int
-type Square = (Position, Player)
+opposition :: Position -> Position
+opposition p = 10 - p
+
+data Square = Square Position Player
+  deriving (Eq, Show)
+location :: Square -> Position
+location (Square p _) = p
+tic :: Square -> Player
+tic (Square _ t) = t
+oppositeSq :: Board -> Square -> Square
+oppositeSq board (Square p _)  = squareFor board p
+
 type Board = [Square]
-type Intersection = (Position, [[Square]])
+
+data Intersection = Intersection Position [[Square]]
+ deriving (Eq, Show)
+nexus :: Intersection -> Position
+nexus (Intersection p _) = p
+triples :: Intersection -> [[Square]]
+triples (Intersection _ r) = r
+
 
 
 {-
@@ -38,7 +56,7 @@ autoPlay board = autoPlayUsing smarterMove board
 -- autoPlay a game, but pick starting move
 -- keep track of play as it proceeds
 autoPlayFromUsingTrack :: (Board -> Board) -> Position -> [Board]
-autoPlayFromUsingTrack strategy start = autoPlayUsingTrack strategy ([move (start, player) board])
+autoPlayFromUsingTrack strategy start = autoPlayUsingTrack strategy ([move (Square start player) board])
   where board = newBoard
         player = whosMove board
 
@@ -53,7 +71,7 @@ autoPlayUsingTrack strategy boards
 
 -- autoPlay a game employing supplied strategy, but pick starting move
 autoPlayFromUsing :: (Board -> Board) -> Position -> Board
-autoPlayFromUsing strategy start = autoPlayUsing strategy (move (start, player) board)
+autoPlayFromUsing strategy start = autoPlayUsing strategy (move (Square start player) board)
   where board = newBoard
         player = whosMove board
 
@@ -119,7 +137,7 @@ bestUnplayedSquare b p
 -- returns unplayed positions ranked by most tics for player in its intersections
 rankUnplayedPositions :: Board -> Player -> [Position]
 rankUnplayedPositions b p =
- map fst (sortBy (rankIntersectionFor p) (byIntersectionsUnplayed b))
+ map nexus (sortBy (rankIntersectionFor p) (byIntersectionsUnplayed b))
 
 -- if one intersection has a better score, it's better
 -- if they're the same, rank by their position
@@ -129,7 +147,7 @@ rankIntersectionFor :: Player -> Intersection -> Intersection -> Ordering
 rankIntersectionFor p i1 i2
   | i1Score > i2Score = LT
   | i1Score < i2Score = GT
-  | i1Score == i2Score = rankPosition (fst i1) (fst i2)
+  | i1Score == i2Score = rankPosition (nexus i1) (nexus i2)
   where i1Score = scoreIntersectionFor p i1
         i2Score = scoreIntersectionFor p i2
 
@@ -138,35 +156,35 @@ rankIntersectionFor p i1 i2
 scoreIntersectionFor :: Player -> Intersection -> Int
 scoreIntersectionFor p i
  -- has an about to win
- | length (filter (\r -> ticCount p r == 2) rows) > 0 = 12
+ | length (filter (\r -> ticCount p r == 2) itsTriples) > 0 = 12
  -- has an about to lose
- | length (filter (\r -> ticCount o r == 2) rows) > 0 = 11
+ | length (filter (\r -> ticCount o r == 2) itsTriples) > 0 = 11
  -- it's an open corner & opponent occupies opposite corner
  -- (if opponent allowed to tick, creates two magic corners, making a block impossible)
- | elem position [1,3,7,9] && snd (squareAt opposition rows) == otherPlayer p = 10
- -- is a "magic corner", i.e. has two rows with tics
- | length (filter (\r -> ticCount p r == 1) rows) > 1 = 9
+ | elem itsNexus [1,3,7,9] && tic (squareAt opposite itsTriples) == otherPlayer p = 10
+ -- is a "magic corner", i.e. has two triples with tics
+ | length (filter (\r -> ticCount p r == 1) itsTriples) > 1 = 9
  -- is an opponent's "magic corner"
- | length (filter (\r -> ticCount o r == 1) rows) > 1 = 8
+ | length (filter (\r -> ticCount o r == 1) itsTriples) > 1 = 8
  -- is centre or corner with "connected" tics for opponent
- | elem position [1,3,5,7,9] && length (filter (\r -> ticCount o r == 1) rows) > 0 = 7
+ | elem itsNexus [1,3,5,7,9] && length (filter (\r -> ticCount o r == 1) itsTriples) > 0 = 7
  -- is centre or corner with "connected" tics for self
- | elem position [1,3,5,7,9] && length (filter (\r -> ticCount p r == 1) rows) > 0 = 6
+ | elem itsNexus [1,3,5,7,9] && length (filter (\r -> ticCount p r == 1) itsTriples) > 0 = 6
  -- is the centre
- | position == 5 = 5
+ | itsNexus == 5 = 5
  -- is a corner
- | elem position [1,3,7,9] = 4
+ | elem itsNexus [1,3,7,9] = 4
  -- otherwise, sum unblocked ticks, at this point,
  -- intutively suspect this will always be 2 or less (if reached), but haven't proved it
- | otherwise = ticCountSumUseful p rows
- where rows = snd i
-       position = fst i
-       opposition = 10 - position  -- "opposite position"
+ | otherwise = ticCountSumUseful p itsTriples
+ where itsTriples = triples i
+       itsNexus = nexus i
+       opposite = opposition itsNexus  -- "opposite position"
        o = otherPlayer p
        -- index a square out of an intersection's "triples"
        -- caller knows it will be there, so doesn't protect against empty list
        squareAt :: Position -> [[Square]] -> Square
-       squareAt  p lsqs = head $ filter (\i -> fst i == p) sqs
+       squareAt  p lsqs = head $ filter (\i -> location i == p) sqs
          where sqs = concat lsqs
 
 
@@ -186,7 +204,7 @@ rankSquares :: [Square] -> [Square]
 rankSquares squares = sortBy rankSquare squares
 
 rankSquare :: Square -> Square -> Ordering
-rankSquare sq1 sq2 = rankPosition (fst sq1) (fst sq2)
+rankSquare sq1 sq2 = rankPosition (location sq1) (location sq2)
 
 -- by "value" of a position ... descending (compare is backwards)
 -- centre -> a corner -> something else
@@ -204,12 +222,12 @@ rankPosition p1 p2
 
 -- / square state functions
 
--- weights a collection of "rows", by summing player's tics for those rows not occuped by opponent
+-- weights a collection of "triples", by summing player's tics for those triples not occuped by opponent
 ticCountSumUseful :: Player -> [[Square]] -> Int
 ticCountSumUseful player sqls = foldr (+) 0 (map (ticCount player) (filter (isUnplayedFor (otherPlayer player)) sqls))
 
 ticCount :: Player -> [Square] -> Int
-ticCount player squares = length $ filter (\a -> snd a == player) squares
+ticCount player squares = length $ filter (\a -> tic a == player) squares
 
 ticSquareMaybe :: Player -> Maybe Square -> Maybe Square
 ticSquareMaybe p msq
@@ -218,7 +236,7 @@ ticSquareMaybe p msq
   where square = fromJust msq
 
 ticSquare :: Player -> Square -> Square
-ticSquare char square = (fst square, char)
+ticSquare player oldSquare = Square (location oldSquare) player
 
 -- squares with supplied positions
 squaresFor :: Board -> [Position] -> [Square]
@@ -230,16 +248,16 @@ squareFor :: Board -> Position -> Square
 squareFor b p =  b !! (p-1)
 
 isUnplayedFor :: Player -> [Square] -> Bool
-isUnplayedFor p squares = length (filter (\sq -> snd sq == p) squares) == 0
+isUnplayedFor p squares = length (filter (\sq -> tic sq == p) squares) == 0
 
 hasUnplayed :: [Square] -> Bool
-hasUnplayed squares = length (filter (\sq -> snd sq == N) squares) > 0
+hasUnplayed squares = length (filter (\sq -> tic sq == N) squares) > 0
 
 isUnplayedPosition :: Board -> Position -> Bool
 isUnplayedPosition b p = isUnplayed (squareFor b p)
 
 isUnplayed :: Square -> Bool
-isUnplayed square = snd square == N
+isUnplayed square = tic square == N
 
 -- \ square state functions
 
@@ -247,7 +265,7 @@ isUnplayed square = snd square == N
 -- / board state functions
 
 newBoard :: Board
-newBoard = map (\i -> (i, N)) [1..9]
+newBoard = map (\i -> Square i N) [1..9]
 
 playableTriples :: Board -> [[Square]]
 playableTriples board = filter hasUnplayed (winningTriples board)
@@ -259,18 +277,18 @@ winningTriples board = map (\w -> squaresFor board w) winners
 
 -- given a position & board, return postion's winning combos from board
 winnersFor :: Position -> Board -> [[Square]]
-winnersFor position board = (filter (\w -> elem position (map fst w))) (winningTriples board)
+winnersFor thePosition board = (filter (\w -> elem thePosition (map location w))) (winningTriples board)
 
 byIntersectionsUnplayed :: Board -> [Intersection]
-byIntersectionsUnplayed b =  filter (\i -> isUnplayedPosition b (fst i)) (byIntersections b)
+byIntersectionsUnplayed b =  filter (\i -> isUnplayedPosition b (nexus i)) (byIntersections b)
 
 -- represent a board as a list of intersections for each position
 byIntersections :: Board -> [Intersection]
-byIntersections  board = map (\p -> (p, winnersFor p board)) [1..9]
+byIntersections  board = map (\p -> Intersection p (winnersFor p board)) [1..9]
 
 winner :: Board -> Player -> Bool
-winner b p =  or $ map (\w -> isInfixOf w ticked) winners
-  where ticked = map fst (filter (\sq -> snd sq == p) b)
+winner board player =  or $ map (\w -> isInfixOf w ticked) winners
+  where ticked = map location (filter (\sq -> (tic sq) == player) board)
         winners = [[1,2,3], [4,5,6], [7,8,9], [1,5,9], [3,5,7]]
 
 theWinner :: Board -> Player
@@ -291,9 +309,9 @@ whoWonMoves b
 
 -- give all moves made by winning player, not just winning sequence
 howWon :: Board -> (Player, [Position])
-howWon board = (winner, map fst squares)
+howWon board = (winner, map location squares)
   where winner = theWinner board
-        squares = [sq | sq <- board, snd sq == winner]
+        squares = [sq | sq <- board, tic sq == winner]
 
 -- if board is empty, assumes 'x' plays first ...
 whosMove :: Board -> Player
@@ -304,7 +322,7 @@ whosMove b
  where movesLeft = length (unplayedSquares b)
 
 unplayedSquares :: [Square] -> [Square]
-unplayedSquares b = filter (\sq -> snd sq == N) b
+unplayedSquares b = filter (\sq -> tic sq == N) b
 
 
 otherPlayer :: Player -> Player
@@ -322,7 +340,7 @@ otherPlayer p
 nextMove :: Position -> Board -> Board
 nextMove p b
   | not $ (isUnplayed $ squareFor b p) = b
-  | otherwise = move (p, player) b
+  | otherwise = move (Square p player) b
   where player = whosMove b
 
 
@@ -333,11 +351,11 @@ moveMaybe msq board
 
 move :: Square -> Board -> Board
 move square board
-  | position == 1 = square : rightBoard
-  | position == 9 = init board ++ [square]
+  | itsLocation == 1 = square : rightBoard
+  | itsLocation == 9 = init board ++ [square]
   | otherwise = init leftBoard ++ [square] ++ rightBoard
-  where position = fst square
-        sections = splitAt position board
+  where itsLocation = location square
+        sections = splitAt itsLocation board
         leftBoard = fst sections
         rightBoard = snd sections
 
