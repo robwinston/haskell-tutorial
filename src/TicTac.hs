@@ -11,23 +11,20 @@ type Position = Int
 opposition :: Position -> Position
 opposition p = 10 - p
 
-data Square = Square Position Player
-  deriving (Eq, Show)
-location :: Square -> Position
-location (Square p _) = p
-tic :: Square -> Player
-tic (Square _ t) = t
+data Square = Square {
+                 location :: Position,
+                 tic :: Player }
+              deriving (Eq, Show)
+
 oppositeSq :: Board -> Square -> Square
 oppositeSq board (Square p _)  = squareFor board p
 
 type Board = [Square]
 
-data Intersection = Intersection Position [[Square]]
- deriving (Eq, Show)
-nexus :: Intersection -> Position
-nexus (Intersection p _) = p
-triples :: Intersection -> [[Square]]
-triples (Intersection _ r) = r
+data Intersection = Intersection  {
+                      nexus :: Position,
+                      triples :: [[Square]] }
+                    deriving (Eq, Show)
 
 
 
@@ -208,6 +205,7 @@ rankSquare sq1 sq2 = rankPosition (location sq1) (location sq2)
 
 -- by "value" of a position ... descending (compare is backwards)
 -- centre -> a corner -> something else
+-- Rank => Centre > Corner > Anything Else (which are themselves of equal rank)
 rankPosition :: Position -> Position -> Ordering
 rankPosition p1 p2
   | p1 == 5 = LT
