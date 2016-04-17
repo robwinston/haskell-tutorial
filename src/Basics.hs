@@ -1,7 +1,7 @@
 module Basics where
 
 -- re-invent take
-mytake :: Int -> [Int] -> [Int]
+mytake :: Int -> [a] -> [a]
 mytake _ [] = []
 mytake y (x:xs)
  | y <= 0 = []
@@ -9,17 +9,17 @@ mytake y (x:xs)
 
 
 
--- mutually recursive functions
-alternating :: [Int] -> Bool
+-- / mutually recursive functions
+alternating :: (Ord a) => [a] -> Bool
 alternating xs = (updown xs) || (downup xs)
 
-downup :: [Int] -> Bool
+downup :: (Ord a) => [a] -> Bool
 downup [] = True
 downup [x] = True
 downup (x:y:xs) = (x > y) && updown (y:xs)
 
-updown :: [Int] -> Bool
+updown :: (Ord a) => [a] -> Bool
 updown [] = True
 updown [x] = True
 updown (x:y:xs) = (x < y) && downup (y:xs)
--- mrf
+-- \ mutually recursive functions
