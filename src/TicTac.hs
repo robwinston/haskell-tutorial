@@ -86,13 +86,10 @@ playARoundUsing strategy board position
   | otherwise = strategy (makeThisMove position board)
 
 {-
-both strategies play to draw against self,
-but I think "smarterMove" can better hold its own against a human being
-... will test when add IO to mix
-ghci> playAllUsingWinners smarterMove
-"/////////"  <- '/' means it's a draw (theWinner function does this)
 ghci> playAllUsingWinners smartMove
-"/////////"
+[N,N,N,N,N,N,N,X,X]  <- X wins when starting with position 8 or 9
+ghci> playAllUsingWinners smarterMove
+[N,N,N,N,N,N,N,N,N] <- plays to draw in all cases
 ghci>
 -}
 
@@ -142,7 +139,7 @@ autoPlayUsing strategy board
 
 -- given a board, try to make best next move
 -- streamlined strategy ... this will autoplay every starting position to a draw
--- remains to be seen if a human can outsmart it  ...
+-- but can be defeated by a human with certain sequences
 smarterMove :: Board -> Board
 smarterMove board
   | isJust unplayedSquare = move (ticSquare player (fromJust unplayedSquare)) board
@@ -216,7 +213,8 @@ scoreIntersectionFor p i
  -- it's open corner & opponent occupies opposite
  | elem itsNexus [1,3,7,9] && tic (squareAt opposite i) == otherPlayer p = 10
  -- it's an open corner & opponent occupies adjacent corners
- -- (if opponent is allowed to tick, creates two magic corners, making a block impossible)
+ -- (if opponent is allowed to tick, possibly creates two magic corners, making a block impossible)
+ -- but, doesn't yet check if relevant squares are indeed open  <- this is why it can be tricked
  | elem itsNexus [1,3,7,9] && occupiesAdjacentCorners i (otherPlayer p) = 9
  -- is a "magic junction", i.e. has two triples with tics
  | length (filter (\r -> ticCount p r == 1) itsTriples) > 1 = 8
@@ -248,7 +246,6 @@ squareAt  p i = head $ filter (\i -> location i == p) sqs
 adjacentCorners :: Position -> [Position]
 adjacentCorners p = snd $ head $ filter (\adj -> fst adj == p) adjs
   where adjs = [ (1,[3,7]), (2,[1,3]), (3,[1,9]), (4,[1,7]), (5, [1,3,7,9]), (6, [3,9]), (7, [1,9]), (8, [7,9]), (9, [3,7])]
-
 
 
 
