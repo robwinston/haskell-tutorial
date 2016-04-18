@@ -26,19 +26,22 @@ showSquare (Square {location = l, tic = p}) = "|" ++ show l ++ ":" ++ show p ++ 
 
 
 -- / Board
-oppositeSq :: Board -> Square -> Square
-oppositeSq board (Square p _)  = squareFor board p
-
 
 data Board = Board  {
                squares :: [Square] }
              deriving (Eq)
 
+newBoard :: Board
+newBoard = Board (map (\i -> Square i N) [1..9])
+
+oppositeSq :: Board -> Square -> Square
+oppositeSq board (Square p _)  = squareFor board p
+
 
 instance Show Board
   where show (Board sq)  = showBoard (Board sq)
 showBoard :: Board -> String
-showBoard (Board {squares = sq} ) = (fst (squaresToGrid ("", sq))) ++ (boardState b)
+showBoard (Board {squares = sq} ) =  (fst (squaresToGrid ("", sq))) ++ (boardState b)
   where b = Board sq
         boardState :: Board -> String
         boardState b
@@ -52,7 +55,7 @@ showBoard (Board {squares = sq} ) = (fst (squaresToGrid ("", sq))) ++ (boardStat
 squaresToGrid :: (String , [Square]) -> (String, [Square])
 squaresToGrid (gridString, squares)
   | length squares == 0 = (gridString, squares)
-  | otherwise =  squaresToGrid ((gridString ++ show (concat (map justTic row)) ++ "\n"), whatsLeft)
+  | otherwise =  squaresToGrid ((gridString ++ (removeDupes (concat (map justTic row))) ++ "\n"), whatsLeft)
   where (row, whatsLeft) = splitAt 3 squares
 
 justTic :: Square -> String
@@ -326,9 +329,6 @@ isUnplayed square = tic square == N
 
 -- / board state functions
 
-newBoard :: Board
-newBoard = Board (map (\i -> Square i N) [1..9])
-
 playableTriples :: Board -> [[Square]]
 playableTriples board = filter hasUnplayed (winningTriples board)
 
@@ -447,3 +447,11 @@ moveThrough (unplayedSquares, board)
 
 -- \ programmed play
 
+-- / util
+
+removeDupes :: String -> String
+removeDupes [] = []
+removeDupes (x:y:xs)
+  | x == y =  removeDupes (y:xs)
+  | otherwise = x:(removeDupes (y:xs))
+removeDupes s = s
