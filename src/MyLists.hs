@@ -35,8 +35,8 @@ data Stack a = Stack [a]
 empty :: Stack a
 empty =  Stack []
 
-push :: a -> Stack a -> Stack a
-push x (Stack xs) = Stack (x:xs)
+push :: Stack a -> a -> Stack a
+push (Stack xs)  x = Stack (x:xs)
 
 pop :: Stack a -> (a, Stack a)
 pop   (Stack (x:xs)) = (x, Stack (xs))
@@ -46,6 +46,17 @@ isEmpty (Stack (xs)) = length xs == 0
 
 depth :: Stack a -> Int
 depth (Stack (xs)) = length xs
+
+sumStack :: (Num a) => Stack a -> a
+sumStack (Stack (xs)) = foldr (+) 0 xs
+
+-- frivolous function to play with syntax
+-- prepends reversed stack to supplied list
+popper :: ([a], Stack a) -> ([a], Stack a)
+popper (es, (Stack (xs)))
+ | isEmpty (Stack (xs)) = (es, empty)
+ | otherwise = popper (e:es, ns)
+   where (e, ns) = pop (Stack (xs))
 
 
 
