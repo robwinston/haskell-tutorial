@@ -30,7 +30,10 @@ partit (x:xs) = [(x: head l):(tail l) | l <- partit xs] ++ [[x]:l | l <- partit 
 
 -- generic data type
 data Stack a = Stack [a]
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Ord)
+
+instance (Show a) => Show (Stack a)
+    where show (Stack l) = printElems l
 
 empty :: Stack a
 empty =  Stack []
@@ -59,4 +62,9 @@ popper (es, (Stack (xs)))
    where (e, ns) = pop (Stack (xs))
 
 
+
+printElems :: (Show a) => [a] -> String
+printElems [] = ""
+printElems [x] = show x
+printElems (x:xs) = show x ++ "->" ++ printElems xs
 
