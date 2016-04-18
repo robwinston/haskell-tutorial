@@ -30,16 +30,27 @@ oppositeSq :: Board -> Square -> Square
 oppositeSq board (Square p _)  = squareFor board p
 
 
-data Board = Board  { squares :: [Square] }
+data Board = Board  {
+               squares :: [Square] }
+             deriving (Eq)
 
 
 instance Show Board
-  where show (Board [sq])  = showBoard (Board [sq])
+  where show (Board sq)  = showBoard (Board sq)
 showBoard :: Board -> String
-showBoard b = ""
+showBoard (Board {squares = sq}) = fst (squaresToGrid ("", sq))
 
+squaresToGrid :: (String , [Square]) -> (String, [Square])
+squaresToGrid (gridString, squares)
+  | length squares == 0 = (gridString, squares)
+  | otherwise =  squaresToGrid ((gridString ++ show (concat (map justTic row)) ++ "\n"), whatsLeft)
+  where (row, whatsLeft) = splitAt 3 squares
+
+justTic :: Square -> String
+justTic square  = "|" ++ show (tic square) ++ "|"
 -- \ Board
 
+type Strategy = (Board -> Board)
 
 data Intersection = Intersection  {
                       nexus :: Position,
@@ -47,6 +58,19 @@ data Intersection = Intersection  {
                     deriving (Eq, Show)
 
 
+play :: Board -> Position -> Board
+play board position = playARound board position
+
+playUsing :: Strategy -> Board -> Position -> Board
+playUsing  strategy board position = playARoundUsing strategy board position
+
+playARound :: Board -> Position -> Board
+playARound board position = playARoundUsing smarterMove board position
+
+playARoundUsing  :: Strategy -> Board -> Position -> Board
+playARoundUsing strategy board position
+  | position < 1 || position > 9 = strategy $ strategy board
+  | otherwise = strategy (makeThisMove position board)
 
 {-
 both strategies play to draw against self,
@@ -63,7 +87,7 @@ playAllUsingWinners :: (Board -> Board) -> [Player]
 playAllUsingWinners strategy = map theWinner $ map (autoPlayFromUsing strategy) [1..9]
 
 autoPlayFrom :: Position -> Board
-autoPlayFrom start = autoPlay (nextMove start board)
+autoPlayFrom start = autoPlay (makeThisMove start board)
   where board = newBoard
 
 autoPlay :: Board -> Board
@@ -72,7 +96,7 @@ autoPlay board = autoPlayUsing smarterMove board
 
 -- autoPlay a game, but pick starting move
 -- keep track of play as it proceeds
-autoPlayFromUsingTrack :: (Board -> Board) -> Position -> [Board]
+autoPlayFromUsingTrack :: Strategy -> Position -> [Board]
 autoPlayFromUsingTrack strategy start = autoPlayUsingTrack strategy ([move (Square start player) board])
   where board = newBoard
         player = whosMove board
@@ -355,8 +379,8 @@ otherPlayer p
 
 -- given a position, tic for next player
 -- ignore if square is occupied
-nextMove :: Position -> Board -> Board
-nextMove p b
+makeThisMove :: Position -> Board -> Board
+makeThisMove p b
   | not $ (isUnplayed $ squareFor b p) = b
   | otherwise = move (Square p player) b
   where player = whosMove b
@@ -397,7 +421,7 @@ moveThrough :: ([Position], Board) -> ([Position], Board)
 moveThrough (unplayedSquares, board)
   | length unplayedSquares == 0 = (unplayedSquares, board)
   | aWinner board = (unplayedSquares, board)
-  | otherwise = moveThrough (tail unplayedSquares, (nextMove (head unplayedSquares) board))
+  | otherwise = moveThrough (tail unplayedSquares, (makeThisMove (head unplayedSquares) board))
 
 -- \ programmed play
 
