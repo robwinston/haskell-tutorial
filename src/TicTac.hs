@@ -72,6 +72,7 @@ play board position = playUsing smarterMove board position
 
 playUsing :: Strategy -> Board -> Position -> Board
 playUsing  strategy board position
+  | aWinner board = board
   | position < 1 || position > 9 = strategy board
   | otherwise = makeThisMove position board
 
@@ -80,6 +81,7 @@ playARound board position = playARoundUsing smarterMove board position
 
 playARoundUsing  :: Strategy -> Board -> Position -> Board
 playARoundUsing strategy board position
+  | aWinner board = board
   | position < 1 || position > 9 = strategy $ strategy board
   | otherwise = strategy (makeThisMove position board)
 
@@ -94,7 +96,7 @@ ghci> playAllUsingWinners smartMove
 ghci>
 -}
 
-playAllUsingWinners :: (Board -> Board) -> [Player]
+playAllUsingWinners :: Strategy -> [Player]
 playAllUsingWinners strategy = map theWinner $ map (autoPlayFromUsing strategy) [1..9]
 
 autoPlayFrom :: Position -> Board
@@ -114,7 +116,7 @@ autoPlayFromUsingTrack strategy start = autoPlayUsingTrack strategy ([move (Squa
 
 -- autoPlay a game, using first of supplied boards which may or may not have moves already made
 -- keep adding boards to list as game play proceeds
-autoPlayUsingTrack :: (Board -> Board) -> [Board] -> [Board]
+autoPlayUsingTrack :: Strategy -> [Board] -> [Board]
 autoPlayUsingTrack strategy boards
   | aWinner nextBoard = nextBoard : boards
   | not $ hasUnplayed (squares nextBoard) = nextBoard : boards
@@ -122,13 +124,13 @@ autoPlayUsingTrack strategy boards
   where nextBoard = strategy $ head boards
 
 -- autoPlay a game employing supplied strategy, but pick starting move
-autoPlayFromUsing :: (Board -> Board) -> Position -> Board
+autoPlayFromUsing :: Strategy -> Position -> Board
 autoPlayFromUsing strategy start = autoPlayUsing strategy (move (Square start player) board)
   where board = newBoard
         player = whosMove board
 
 -- autoPlay a game employing supplied strategy, using supplied board which may or may not have moves already made
-autoPlayUsing :: (Board -> Board) -> Board -> Board
+autoPlayUsing :: Strategy -> Board -> Board
 autoPlayUsing strategy board
   | aWinner nextBoard = nextBoard
   | not $ hasUnplayed (squares nextBoard) = nextBoard
