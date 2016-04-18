@@ -200,21 +200,23 @@ scoreIntersectionFor p i
  | length (filter (\r -> ticCount p r == 2) itsTriples) > 0 = 12
  -- has an about to lose
  | length (filter (\r -> ticCount o r == 2) itsTriples) > 0 = 11
- -- it's an open corner & opponent occupies opposite corner
- -- (if opponent allowed to tick, creates two magic corners, making a block impossible)
- | elem itsNexus [1,3,7,9] && tic (squareAt opposite itsTriples) == otherPlayer p = 10
- -- is a "magic corner", i.e. has two triples with tics
- | length (filter (\r -> ticCount p r == 1) itsTriples) > 1 = 9
- -- is an opponent's "magic corner"
- | length (filter (\r -> ticCount o r == 1) itsTriples) > 1 = 8
- -- is centre or corner with "connected" tics for opponent
- | elem itsNexus [1,3,5,7,9] && length (filter (\r -> ticCount o r == 1) itsTriples) > 0 = 7
- -- is centre or corner with "connected" tics for self
- | elem itsNexus [1,3,5,7,9] && length (filter (\r -> ticCount p r == 1) itsTriples) > 0 = 6
+ -- it's open corner & opponent occupies opposite
+ | elem itsNexus [1,3,7,9] && tic (squareAt opposite i) == otherPlayer p = 10
+ -- it's an open corner & opponent occupies adjacent corners
+ -- (if opponent is allowed to tick, creates two magic corners, making a block impossible)
+ | elem itsNexus [1,3,7,9] && occupiesAdjacentCorners i (otherPlayer p) = 9
+ -- is a "magic junction", i.e. has two triples with tics
+ | length (filter (\r -> ticCount p r == 1) itsTriples) > 1 = 8
+ -- is an opponent's "magic junction"
+ | length (filter (\r -> ticCount o r == 1) itsTriples) > 1 = 7
  -- is the centre
- | itsNexus == 5 = 5
+ | itsNexus == 5 = 6
+ -- is corner with "connected" tics for opponent
+ | elem itsNexus [1,3,7,9] && length (filter (\r -> ticCount o r == 1) itsTriples) > 0 = 5
+ -- is corner with "connected" tics for self
+ | elem itsNexus [1,3,7,9] && length (filter (\r -> ticCount p r == 1) itsTriples) > 0 = 4
  -- is a corner
- | elem itsNexus [1,3,7,9] = 4
+ | elem itsNexus [1,3,7,9] = 3
  -- otherwise, sum unblocked ticks, at this point,
  -- intutively suspect this will always be 2 or less (if reached), but haven't proved it
  | otherwise = ticCountSumUseful p itsTriples
@@ -222,11 +224,19 @@ scoreIntersectionFor p i
        itsNexus = nexus i
        opposite = opposition itsNexus  -- "opposite position"
        o = otherPlayer p
-       -- index a square out of an intersection's "triples"
-       -- caller knows it will be there, so doesn't protect against empty list
-       squareAt :: Position -> [[Square]] -> Square
-       squareAt  p lsqs = head $ filter (\i -> location i == p) sqs
-         where sqs = concat lsqs
+
+occupiesAdjacentCorners :: Intersection -> Player -> Bool
+occupiesAdjacentCorners i py = and (map (\ac-> ((tic (squareAt ac i)))  == py) (adjacentCorners (nexus i)))
+-- index a square out of an intersection's "triples"
+-- caller knows it will be there, so doesn't protect against empty list
+squareAt :: Position -> Intersection -> Square
+squareAt  p i = head $ filter (\i -> location i == p) sqs
+  where sqs = concat (triples i)
+adjacentCorners :: Position -> [Position]
+adjacentCorners p = snd $ head $ filter (\adj -> fst adj == p) adjs
+  where adjs = [ (1,[3,7]), (2,[1,3]), (3,[1,9]), (4,[1,7]), (5, [1,3,7,9]), (6, [3,9]), (7, [1,9]), (8, [7,9]), (9, [3,7])]
+
+
 
 
 -- order triples by how 'good' they are for player Char
@@ -315,7 +325,6 @@ playableTriples board = filter hasUnplayed (winningTriples board)
 -- given a board, return its winning combos
 winningTriples :: Board -> [[Square]]
 winningTriples board = map (\w -> squaresFor board w) winners
-  where  winners = [[1,2,3], [4,5,6], [7,8,9], [1,4,7], [2,5,8], [3,6,9], [1,5,9], [3,5,7]]
 
 -- given a position & board, return postion's winning combos from board
 winnersFor :: Position -> Board -> [[Square]]
@@ -331,7 +340,10 @@ byIntersections  board = map (\p -> Intersection p (winnersFor p board)) [1..9]
 winner :: Board -> Player -> Bool
 winner board player =  or $ map (\w -> isInfixOf w ticked) winners
   where ticked = map location (filter (\sq -> (tic sq) == player) (squares board))
-        winners = [[1,2,3], [4,5,6], [7,8,9], [1,5,9], [3,5,7]]
+
+winners :: [[Position]]
+winners = [[1,2,3], [4,5,6], [7,8,9], [1,4,7], [2,5,8], [3,6,9], [1,5,9], [3,5,7]]
+
 
 theWinner :: Board -> Player
 theWinner board = fst $ whoWonMoves board
