@@ -12,7 +12,8 @@ There are four ways to play it.  All *play* functions share common behaviour:
 * If *position* supplied to function is <1 or >9, computer will make next move
 * If *position* supplied is already marked, board remains unchanged
 * *strategy* is a `Board -> Board` function (see code for what a `Board` is
-* There are two pre-defined strategies: `smartMove` and `smarterMove` (it remains to be seen if they're appropriately named)
+* There are two pre-defined strategies: `smartMove` and `smarterMove` The `smartMove` strategy is easily defeated (so not *very* smart after all); the `smarterMove` strategy can be beat, but less easily. 
+
 * Of course *strategy* is used only when the computer is playing
 
 Play functions:
@@ -29,9 +30,8 @@ There are also some *auto-play* functions:
 
 1. `autoPlay board` - computer plays the supplied board until there's a winner or a draw using the `smarterMove` strategy
 2. `autoPlayFrom position` - computer starts a new board, plays the requested position, then carries on like `autoPlay`
-3. `autoPlayUsing ` & `autoPlayFromUsing` are the variations which takea supplied *strategy* 
+3. `autoPlayUsing ` & `autoPlayFromUsing` are the variations which take a supplied *strategy* 
 
 
-The `smartMove` is strategy is easily defeated (so not *very* smart after all); the `smarterMove` strategy can be beat, but less easily. 
 
 [Sample Play](SAMPLEGAME.md)
