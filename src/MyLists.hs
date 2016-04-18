@@ -27,3 +27,25 @@ partit [] = [[[]]]
 partit [x] = [[[x]]]
 partit (x:xs) = [(x: head l):(tail l) | l <- partit xs] ++ [[x]:l | l <- partit xs]
 
+
+-- generic data type
+data Stack a = Stack [a]
+  deriving (Eq, Show, Ord)
+
+empty :: Stack a
+empty =  Stack []
+
+push :: a -> Stack a -> Stack a
+push x (Stack xs) = Stack (x:xs)
+
+pop :: Stack a -> (a, Stack a)
+pop   (Stack (x:xs)) = (x, Stack (xs))
+
+isEmpty :: Stack a -> Bool
+isEmpty (Stack (xs)) = length xs == 0
+
+depth :: Stack a -> Int
+depth (Stack (xs)) = length xs
+
+
+
