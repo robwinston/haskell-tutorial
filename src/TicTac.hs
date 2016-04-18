@@ -38,7 +38,16 @@ data Board = Board  {
 instance Show Board
   where show (Board sq)  = showBoard (Board sq)
 showBoard :: Board -> String
-showBoard (Board {squares = sq}) = fst (squaresToGrid ("", sq))
+showBoard (Board {squares = sq} ) = (fst (squaresToGrid ("", sq))) ++ (boardState b)
+  where b = Board sq
+        boardState :: Board -> String
+        boardState b
+          | aWinner b = (show whoWon)  ++ " wins!"
+          | nextPlayer == N = "It's a draw"
+          | otherwise = (show nextPlayer) ++ " to move"
+          where whoWon = theWinner b
+                nextPlayer = whosMove b
+
 
 squaresToGrid :: (String , [Square]) -> (String, [Square])
 squaresToGrid (gridString, squares)
@@ -59,10 +68,12 @@ data Intersection = Intersection  {
 
 
 play :: Board -> Position -> Board
-play board position = playARound board position
+play board position = playUsing smarterMove board position
 
 playUsing :: Strategy -> Board -> Position -> Board
-playUsing  strategy board position = playARoundUsing strategy board position
+playUsing  strategy board position
+  | position < 1 || position > 9 = strategy board
+  | otherwise = makeThisMove position board
 
 playARound :: Board -> Position -> Board
 playARound board position = playARoundUsing smarterMove board position
