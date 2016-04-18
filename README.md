@@ -33,3 +33,5 @@ There are also some *auto-play* functions:
 
 
 The `smartMove` is strategy is easily defeated (so not *very* smart after all); the `smarterMove` strategy can be beat, but less easily. 
+
+[Sample Play](SAMPLEGAME.MD)
