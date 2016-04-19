@@ -35,8 +35,8 @@ data Stack a = Stack [a]
 instance (Show a) => Show (Stack a)
     where show (Stack l) = printElems l
 
-empty :: Stack a
-empty =  Stack []
+emptyS :: Stack a
+emptyS =  Stack []
 
 push :: Stack a -> a -> Stack a
 push (Stack xs)  x = Stack (x:xs)
@@ -57,7 +57,7 @@ sumStack (Stack (xs)) = foldr (+) 0 xs
 -- prepends reversed stack to supplied list
 popper :: ([a], Stack a) -> ([a], Stack a)
 popper (es, (Stack (xs)))
- | isEmpty (Stack (xs)) = (es, empty)
+ | isEmpty (Stack (xs)) = (es, emptyS)
  | otherwise = popper (e:es, ns)
    where (e, ns) = pop (Stack (xs))
 
