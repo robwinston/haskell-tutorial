@@ -19,9 +19,10 @@ data Square = Square {
               deriving (Eq, Ord)
 
 instance Show Square
-  where show (Square l p) = showSquare (Square l p)
+  where show square@(Square l p) = showSquare (square)
 showSquare :: Square -> String
 showSquare (Square {location = l, tic = p}) = "|" ++ show l ++ ":" ++ show p ++ "|"
+
 
 -- \ Square
 
@@ -42,9 +43,8 @@ oppositeSq board (Square p _)  = squareFor board p
 instance Show Board
   where show (Board sqs)  = showBoard (Board sqs)
 showBoard :: Board -> String
-showBoard (Board {squares = sqs} ) =  (fst (squaresToGrid ("", sqs))) ++ (boardState b)
-  where b = Board sqs
-        boardState :: Board -> String
+showBoard b@(Board {squares = sqs} ) =  (fst (squaresToGrid ("", sqs))) ++ (boardState b)
+  where boardState :: Board -> String
         boardState b
           | aWinner b = (show whoWon)  ++ " wins!\n"
           | nextPlayer == N = "It's a draw\n"
@@ -176,8 +176,8 @@ smarterMove board
   | otherwise = board
   where  player = whosMove board
          opponent = otherPlayer player
-         possibleWinners = snd (rankTriples board player)
-         possibleLosers = snd (rankTriples board opponent)
+         (_, possibleWinners) =  rankTriples board player
+         (_, possibleLosers) =  rankTriples board opponent
          unplayedSquare = bestUnplayedSquare board player
 
 -- given a board, try to make best move
@@ -195,8 +195,8 @@ smartMove board
   where
     player = whosMove board
     opponent = otherPlayer player
-    possibleWinners = snd (rankTriples board player)
-    possibleLosers = snd (rankTriples board opponent)
+    (_, possibleWinners) = rankTriples board player
+    (_, possibleLosers) = rankTriples board opponent
     unplayedSquare = pickUnplayedSquare (squares board)
 
 -- from a list of squares, return the 1st unticked one of highest rank (or Nothing)
@@ -462,9 +462,7 @@ move square board
   | itsLocation == 9 = Board ((init (squares board)) ++ [square])
   | otherwise = Board (init leftBoard ++ [square] ++ rightBoard)
   where itsLocation = location square
-        sections = splitAt itsLocation (squares board)
-        leftBoard = fst sections
-        rightBoard = snd sections
+        (leftBoard, rightBoard) = splitAt itsLocation (squares board)
 
 -- \ mechanics
 
