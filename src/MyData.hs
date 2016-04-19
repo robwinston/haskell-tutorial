@@ -177,3 +177,18 @@ charToNum c
   | ord '0' <= ord c &&  ord '9' >= ord c =  ord c - ord '0'
 
 
+pigLatin :: String -> String
+pigLatin "" = ""
+pigLatin s = concat $ map pl (words s)
+  where pl :: String -> String
+        pl [] = []
+        pl (x:y:xs)
+          | length xs == 0 = [x] ++ "ay "
+          | isUpper x = (toUpper y) : xs ++ [toLower x] ++ "ay "
+          | otherwise = [y] ++ xs ++ [x] ++ "ay "
+        pl (x:xs)
+          | length xs == 0 = [x] ++ "ay "
+          | isUpper x = (toUpper (head xs)) : [toLower x] ++ "ay "
+          | otherwise = xs ++ [x] ++ "ay "
+
+
