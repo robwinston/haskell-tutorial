@@ -6,7 +6,7 @@ import Data.Set
 import MyLists
 
 data Player = N | X | O
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Bounded, Enum)
 
 type Move = Int
 type Position = Int
@@ -44,7 +44,7 @@ oppositeSq board (Square p _ _)  = squareFor board p
 
 instance Show Board
   where show (Board sqs)  = showBoard (Board sqs)
-showBoard :: Board -> Bool -> String
+showBoard :: Board -> String
 showBoard b@(Board {squares = sqs} ) =  (fst (squaresToGrid ("", sqs))) ++ (boardState b)
   where boardState :: Board -> String
         boardState b
@@ -484,3 +484,9 @@ removeDupes (x:y:xs)
   | x == y =  removeDupes (y:xs)
   | otherwise = x:(removeDupes (y:xs))
 removeDupes s = s
+
+fullRange :: (Bounded a, Enum a) => [a]
+fullRange = [minBound..maxBound]
+
+players :: [Player]
+players = fullRange
