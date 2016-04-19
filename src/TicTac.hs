@@ -8,6 +8,7 @@ import MyLists
 data Player = N | X | O
   deriving (Eq, Ord, Show)
 
+type Move = Int
 type Position = Int
 opposition :: Position -> Position
 opposition p = 10 - p
@@ -15,13 +16,14 @@ opposition p = 10 - p
 -- / Square
 data Square = Square {
                  location :: Position,
-                 tic :: Player }
+                 tic :: Player,
+                 move :: Move }
               deriving (Eq, Ord)
 
 instance Show Square
-  where show square@(Square l p) = showSquare (square)
+  where show square@(Square l p m) = showSquare (square)
 showSquare :: Square -> String
-showSquare (Square {location = l, tic = p}) = "|" ++ show l ++ ":" ++ show p ++ "|"
+showSquare (Square {location = l, tic = p, move = m}) = "|" ++ show l ++ ":" ++ show p ++ ":" ++ show m ++ "|"
 
 
 -- \ Square
@@ -34,15 +36,15 @@ data Board = Board  {
              deriving (Eq)
 
 newBoard :: Board
-newBoard = Board (Data.List.map (\i -> Square i N) [1..9])
+newBoard = Board (Data.List.map (\i -> Square i N 0) [1..9])
 
 oppositeSq :: Board -> Square -> Square
-oppositeSq board (Square p _)  = squareFor board p
+oppositeSq board (Square p _ _)  = squareFor board p
 
 
 instance Show Board
   where show (Board sqs)  = showBoard (Board sqs)
-showBoard :: Board -> String
+showBoard :: Board -> Bool -> String
 showBoard b@(Board {squares = sqs} ) =  (fst (squaresToGrid ("", sqs))) ++ (boardState b)
   where boardState :: Board -> String
         boardState b
@@ -81,6 +83,7 @@ gameString s [] = s ++ "No boards!"
 gameString s (b:bds)
   | length bds == 0 = s ++ show b ++ "\n" ++ show (movesMade b) ++ " moves made\n"
   | otherwise = gameString (s ++ show b ++ "\n") bds
+
 
 -- \ Game
 
@@ -131,7 +134,7 @@ autoPlay board = autoPlayUsing smarterMove board
 
 -- autoPlay a game employing supplied strategy, but pick starting move
 autoPlayFromUsing :: Strategy -> Position -> Board
-autoPlayFromUsing strategy start = autoPlayUsing strategy (move (Square start player) board)
+autoPlayFromUsing strategy start = autoPlayUsing strategy (makeMove start board)
   where board = newBoard
         player = whosMove board
 
@@ -150,7 +153,7 @@ autoPlayTrack boards = autoPlayUsingTrack smarterMove boards
 -- autoPlay a game, but pick starting move
 -- keep track of play as it proceeds
 autoPlayFromUsingTrack :: Strategy -> Position -> [Board]
-autoPlayFromUsingTrack strategy start = autoPlayUsingTrack strategy ([move (Square start player) board])
+autoPlayFromUsingTrack strategy start = autoPlayUsingTrack strategy ([makeMove start board])
   where board = newBoard
         player = whosMove board
 
@@ -171,48 +174,41 @@ autoPlayUsingTrack strategy boards
 -- streamlined strategy ... this will autoplay every starting position to a draw
 -- but can be defeated by a human with certain sequences
 smarterMove :: Board -> Board
-smarterMove board
-  | isJust unplayedSquare = move (ticSquare player (fromJust unplayedSquare)) board
-  | otherwise = board
-  where  player = whosMove board
-         opponent = otherPlayer player
-         (_, possibleWinners) =  rankTriples board player
-         (_, possibleLosers) =  rankTriples board opponent
-         unplayedSquare = bestUnplayedSquare board player
+smarterMove board = makeMove loc board
+    where  player = whosMove board
+           loc = bestUnplayedSquare board player
 
 -- given a board, try to make best move
 -- initial simplistic logic ....
 smartMove :: Board -> Board
 smartMove board
   -- does current player have a winner? - take it
-  | length possibleWinners > 0 && ticCount player (head possibleWinners)  == 2  = moveMaybe (ticSquareMaybe player (pickUnplayedSquare (head possibleWinners))) board
+  | length possibleWinners > 0 && ticCount player (head possibleWinners)  == 2  = makeMove (pickUnplayedSquare (head possibleWinners)) board
   -- does opponent have a winner? - block it
-  | length possibleLosers > 0 && ticCount opponent (head possibleLosers)  == 2  = moveMaybe (ticSquareMaybe player (pickUnplayedSquare (head possibleLosers))) board
+  | length possibleLosers > 0 && ticCount opponent (head possibleLosers)  == 2  = makeMove (pickUnplayedSquare (head possibleLosers)) board
   -- find the first-by-rank open square & play it
-  | isJust unplayedSquare = move (ticSquare player (fromJust unplayedSquare)) board
-  -- nothing to do
-  | otherwise = board
+  | otherwise = makeMove loc board
   where
     player = whosMove board
     opponent = otherPlayer player
     (_, possibleWinners) = rankTriples board player
     (_, possibleLosers) = rankTriples board opponent
-    unplayedSquare = pickUnplayedSquare (squares board)
+    loc = pickUnplayedSquare (squares board)
 
--- from a list of squares, return the 1st unticked one of highest rank (or Nothing)
+-- from a list of squares, return position of the 1st unticked one of highest rank or 0
 -- using fairly simple ranking
-pickUnplayedSquare :: [Square] -> Maybe Square
+pickUnplayedSquare :: [Square] -> Int
 pickUnplayedSquare squares
-  | length sqs == 0 = Nothing
-  | otherwise = Just (head $ rankSquares sqs)
+  | length sqs == 0 = 0
+  | otherwise = location $ head $ rankSquares sqs
   where sqs = Data.List.filter (\sq -> isUnplayed sq) squares
 
--- from a list of squares, return the 1st unticked one of highest rank (or Nothing)
+-- from a list of squares, return the 1st unticked one of highest rank or 0
 -- using more involved ranking
-bestUnplayedSquare :: Board -> Player -> Maybe Square
+bestUnplayedSquare :: Board -> Player -> Int
 bestUnplayedSquare b p
- | length possiblePositions == 0 = Nothing
- | otherwise = Just (squareFor b (head possiblePositions))
+ | length possiblePositions == 0 = 0
+ | otherwise = head possiblePositions
  where possiblePositions = rankUnplayedPositions b p
 
 -- returns unplayed positions ranked by most tics for player in its intersections
@@ -321,15 +317,6 @@ ticCountSumUseful player sqls = Data.List.foldr (+) 0 (Data.List.map (ticCount p
 ticCount :: Player -> [Square] -> Int
 ticCount player squares = length $ Data.List.filter (\a -> tic a == player) squares
 
-ticSquareMaybe :: Player -> Maybe Square -> Maybe Square
-ticSquareMaybe p msq
-  | isNothing msq = msq
-  | otherwise = Just (ticSquare p square)
-  where square = fromJust msq
-
-ticSquare :: Player -> Square -> Square
-ticSquare player oldSquare = Square (location oldSquare) player
-
 -- squares with supplied positions
 squaresFor :: Board -> [Position] -> [Square]
 squaresFor b ps =  Data.List.map (squareFor b) ps
@@ -381,7 +368,6 @@ winner board player =  or $ Data.List.map (\w -> isInfixOf w ticked) winners
 winners :: [[Position]]
 winners = [[1,2,3], [4,5,6], [7,8,9], [1,4,7], [2,5,8], [3,6,9], [1,5,9], [3,5,7]]
 
-
 theWinner :: Board -> Player
 theWinner board = fst $ whoWonMoves board
 
@@ -415,14 +401,21 @@ whosMove b
  | otherwise = X
  where movesLeft = length (unplayedSquares (squares b))
 
-showMoves :: [[Board]] -> [[Square]]
-showMoves boards = []
+whichMove :: Board -> Move
+whichMove b = 10 - length (unplayedSquares (squares b))
+
+boardMoves :: [Board] -> [Square]
+boardMoves [] = []
+boardMoves (bb:ba:bs) = (diffBoards ba bb) ++ boardMoves(ba:bs)
+boardMoves (bb:bs)
+ | length bs == 0 = []
+ | otherwise = (diffBoards (head bs) bb)
 
 diffBoards :: Board -> Board -> [Square]
 diffBoards b1 b2 = diffSquares (squares b1) (squares b2)
 
 diffSquares :: [Square] -> [Square] -> [Square]
-diffSquares sqs1 sqs2 = toList (difference (fromList sqs1) (fromList sqs2))
+diffSquares sqs1 sqs2 = toList (difference  (fromList sqs2) (fromList sqs1))
 
 unplayedSquares :: [Square] -> [Square]
 unplayedSquares b = Data.List.filter (\sq -> tic sq == N) b
@@ -447,22 +440,17 @@ otherPlayer p
 makeThisMove :: Position -> Board -> Board
 makeThisMove p b
   | not $ (isUnplayed $ squareFor b p) = b
-  | otherwise = move (Square p player) b
-  where player = whosMove b
+  | otherwise = makeMove p b
 
 
-moveMaybe :: Maybe Square -> Board -> Board
-moveMaybe msq board
-    | isNothing msq = board
-    | otherwise = move (fromJust msq) board
-
-move :: Square -> Board -> Board
-move square board
-  | itsLocation == 1 = Board (square : rightBoard)
-  | itsLocation == 9 = Board ((init (squares board)) ++ [square])
+makeMove :: Position -> Board -> Board
+makeMove loc board
+  | loc == 0 = board
+  | loc == 1 = Board (square : rightBoard)
+  | loc == 9 = Board ((init (squares board)) ++ [square])
   | otherwise = Board (init leftBoard ++ [square] ++ rightBoard)
-  where itsLocation = location square
-        (leftBoard, rightBoard) = splitAt itsLocation (squares board)
+  where (leftBoard, rightBoard) = splitAt loc (squares board)
+        square = Square loc (whosMove board) (whichMove board)
 
 -- \ mechanics
 
