@@ -113,7 +113,10 @@ data Game = Game {
 instance Show Game
   where show (Game bds) = showGame (Game bds)
 showGame :: Game -> String
-showGame (Game {boards = bds}) = gameString "Game sequence: \n\n" bds
+showGame (Game {boards = bds}) = (gameString "Game sequence: \n" bds) ++ "Moves: " ++ movesMade
+  where movesMade
+          | length bds < 2 = "none"
+          | otherwise = show $ moves (head bds) (last bds)
 
 
 gameString :: String -> [Board] -> String
@@ -155,6 +158,19 @@ playARoundUsing strategy board location
         firstMove b l
           | l == NOL = strategy b
           | otherwise = makeSuppliedMove l b
+
+
+
+moves :: Board -> Board -> [Square]
+moves start finish =  sortByMove (diffBoards start finish)
+
+sortByMove :: [Square] -> [Square]
+sortByMove squares = sortBy byMove squares
+
+byMove :: Square -> Square -> Ordering
+byMove firstSq secondSq = compare firstMove secondMove
+  where firstMove = move firstSq
+        secondMove = move secondSq
 
 {-
 ghci> autoPlayAllUsing smartMove

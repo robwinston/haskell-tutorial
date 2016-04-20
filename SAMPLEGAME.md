@@ -77,6 +77,25 @@ ghci> b4
 |O|X|O|
 It's a draw
 
+
+# Also possible to create a 'Game' from a list of boards 
+ghci> let b1 = autoPlayFrom TM
+ghci> let g1 = Game [newBoard,b1]
+ghci> g1
+Game sequence: 
+|N|N|N|
+|N|N|N|
+|N|N|N|
+X to move
+
+|X|X|O|
+|O|O|X|
+|X|O|X|
+It's a draw
+
+9 moves made
+Moves: [|TM:X:1|,|CTR:O:2|,|BRC:X:3|,|TRC:O:4|,|BLC:X:5|,|BM:O:6|,|RM:X:7|,|LM:O:8|,|TLC:X:9|]
 ghci> 
+
 
 ```
