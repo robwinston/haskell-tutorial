@@ -173,7 +173,9 @@ autoPlayAllUsing strategy = Data.List.map theWinner $ Data.List.map (autoPlayFro
 
 -- auto-play a single game, starting with supplied location, using default strategy
 autoPlayFrom :: Location -> Board
-autoPlayFrom start = autoPlay (makeSuppliedMove start board)
+autoPlayFrom start
+  | start == NOL = autoPlay board
+  | otherwise = autoPlay (makeSuppliedMove start board)
   where board = newBoard
 
 -- auto-play a single game, starting with supplied board (which may be partially played), using default strategy
