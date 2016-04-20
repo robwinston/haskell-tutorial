@@ -9,7 +9,7 @@ data Player = N | X | O
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 
-data Score =  Unplayable | Blocked | Playable | MaybeOthers | MaybeMine | Loser | Winner
+data Score =  Unplayable | Blocked | Playable | MaybeOther | MaybeMe | ForkableOther | ForkableMe | Loser | Winner
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 data Rank = Other | Corner | Centre
@@ -115,7 +115,7 @@ type Scorer = (Player -> Intersection -> Int)
 
 data Intersection = Intersection  {
                       nexus :: Position,
-                      triples :: [[Square]] }
+                      rows :: [[Square]] }
                     deriving (Eq, Show)
 
 -- / game play
@@ -248,39 +248,41 @@ rankIntersectionFor p i1 i2
 scoreIntersectionFor :: Player -> Intersection -> Int
 scoreIntersectionFor p i
  -- winner or loser, easy choice
- | elem Winner scores || elem Loser scores = 18
+ | elem Winner scoresMe || elem Loser scoresMe = 32
  -- magic square for me
- | (length $ Data.List.filter (== MaybeMine) scores) > 1 = 16
+ | (length $ Data.List.filter (== ForkableMe) scoresMe) > 1 = 30
  -- magic square for opponent
- | (length $ Data.List.filter (== MaybeOthers) scores) > 1 = 14
- -- it's an open centre
- | unblocked && theCentre itsNexus  = 12
+ | (length $ Data.List.filter (== ForkableOther) scoresMe) > 1 = 28
  -- it's open corner & opponent occupies opposite
- | unblocked && aCorner itsNexus && tic (squareAt opposite i) == (otherPlayer p) = 10
- -- it's an open corner & opponent occupies adjacent corners
- | unblocked && aCorner itsNexus && occupiesAdjacentCorners i (otherPlayer p) = 8
+ | unblocked && aCorner itsNexus && tic (squareAt opposite i) == op = 8
+ -- it's an open centre
+ | unblocked && theCentre itsNexus  = 10
  -- it's an open corner
  | unblocked && aCorner itsNexus  = 6
  -- it possess some other advantage ...
- | or $ Data.List.map (> Playable) scores = 4
+ | or $ Data.List.map (> Playable) scoresMe = 4
  -- well, it isn't blocked at least
  | unblocked = 2
  -- we're on our way to a draw
  | otherwise = 0
   where itsNexus = nexus i
-        scores = reverse $ sort $ Data.List.map (\sql -> scoreSqListFor p sql) (triples i)
-        unblocked = or $ Data.List.map (> Blocked) scores
+        scoredMe = Data.List.map (\sql -> scoreSqListFor p sql) (rows i)
+        scoresMe = Data.List.map fst scoredMe
+        scoredOp = Data.List.map (\sql -> scoreSqListFor op sql) (rows i)
+        scoresOp = Data.List.map fst scoredOp
+        unblocked = or $ Data.List.map (> Blocked) scoresMe
         opposite = opposition itsNexus  -- "opposite position"
+        op = otherPlayer p
 
 
 occupiesAdjacentCorners :: Intersection -> Player -> Bool
 occupiesAdjacentCorners i py = and (Data.List.map (\ac-> ((tic (squareAt ac i)))  == py) (adjacentCorners (nexus i)))
 
--- index a square out of an intersection's "triples"
+-- index a square out of an intersection's "rows"
 -- caller knows it will be there, so doesn't protect against empty list
 squareAt :: Position -> Intersection -> Square
 squareAt  p i = head $ Data.List.filter (\i -> location i == p) sqs
-  where sqs = concat (triples i)
+  where sqs = concat (rows i)
 
 adjacentCorners :: Position -> [Position]
 adjacentCorners p = snd $ head $ Data.List.filter (\adj -> fst adj == p) adjs
@@ -288,15 +290,17 @@ adjacentCorners p = snd $ head $ Data.List.filter (\adj -> fst adj == p) adjs
 
 
 --   for "rows" of squares ... logic makes no sense if this is a random collection of squares
-scoreSqListFor :: Player -> [Square] -> Score
+scoreSqListFor :: Player -> [Square] -> (Score, [Square])
 scoreSqListFor player sqs
-  | players + opponents == sqsLength = Unplayable   -- played out
-  | players == sqsLength - 1 = Winner               -- a winner
-  | opponents == sqsLength - 1 = Loser              -- a loser
-  | players > 0 && opponents > 0 = Blocked          -- blocked
-  | opponents == 0 = MaybeMine                      -- stake/press a claim
-  | players == 0 && opponents > 0 = MaybeOthers     -- negate a claim
-  | otherwise = Playable                                  -- doesn't really matter
+  | players + opponents == sqsLength = (Unplayable, sqs)   -- played out
+  | players == sqsLength - 1 = (Winner, sqs)               -- a winner
+  | opponents == sqsLength - 1 = (Loser, sqs)              -- a loser
+  | players > 0 && opponents > 0 = (Blocked, sqs)          -- blocked
+  | players > 0 && opponents == 0 = (ForkableMe, sqs)      -- press a claim
+  | players == 0 && opponents > 0 = (ForkableOther, sqs)   -- press a claim
+  | opponents == 0 = (MaybeMe, sqs)                        -- stake a claim
+  | players == 0 = (MaybeOther, sqs)                       -- negate a claim
+  | otherwise = (Playable, sqs)                            -- doesn't really matter
   where sqsLength = length sqs
         players = ticCount player sqs
         opponent = otherPlayer player
@@ -321,7 +325,7 @@ pickUnplayedSquare squares
 
 -- order "rows" by how 'good' they are for Player
 rankBoardRows :: Board -> Player ->  [[Square]]
-rankBoardRows board player = sortBy  (rankSqList player) (playableTriples board)
+rankBoardRows board player = sortBy  (rankSqList player) (playableRows board)
 
 
 -- by score ... descending (compare is backwards)
@@ -330,8 +334,8 @@ rankSqList player first second
   | score1st > score2nd = LT
   | score1st < score2nd = GT
   | otherwise = EQ
-  where score1st = scoreSqListFor player first
-        score2nd = scoreSqListFor player second
+  where score1st = fst $ scoreSqListFor player first
+        score2nd = fst $ scoreSqListFor player second
 
 --- order squares by "rank" descending
 rankSquares :: [Square] -> [Square]
@@ -346,7 +350,7 @@ rankSquare sq1 sq2 = rankPosition (location sq1) (location sq2)
 
 -- / square state functions
 
--- weights a collection of "triples", by summing player's tics for those triples not occuped by opponent
+-- weights a collection of "rows", by summing player's tics for those rows not occuped by opponent
 ticCountSumUseful :: Player -> [[Square]] -> Int
 ticCountSumUseful player sqls = Data.List.foldr (+) 0 (Data.List.map (ticCount player) (Data.List.filter (isUnplayedFor (otherPlayer player)) sqls))
 
@@ -379,16 +383,16 @@ isUnplayed square = tic square == N
 
 -- / board state functions
 
-playableTriples :: Board -> [[Square]]
-playableTriples board = Data.List.filter hasUnplayed (winningTriples board)
+playableRows :: Board -> [[Square]]
+playableRows board = Data.List.filter hasUnplayed (winningRows board)
 
 -- given a board, return its winning combos
-winningTriples :: Board -> [[Square]]
-winningTriples board = Data.List.map (\w -> squaresFor board w) winners
+winningRows :: Board -> [[Square]]
+winningRows board = Data.List.map (\w -> squaresFor board w) winners
 
 -- given a position & board, return postion's winning combos from board
 winnersFor :: Position -> Board -> [[Square]]
-winnersFor thePosition board = (Data.List.filter (\w -> elem thePosition (Data.List.map location w))) (winningTriples board)
+winnersFor thePosition board = (Data.List.filter (\w -> elem thePosition (Data.List.map location w))) (winningRows board)
 
 byIntersectionsUnplayed :: Board -> [Intersection]
 byIntersectionsUnplayed b =  Data.List.filter (\i -> isUnplayedPosition b (nexus i)) (byIntersections b)
