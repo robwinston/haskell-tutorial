@@ -8,10 +8,39 @@ import MyLists
 data Player = N | X | O
   deriving (Eq, Ord, Show, Bounded, Enum)
 
-type Move = Int
+
+data Score =  Unplayable | Blocked | Playable | MaybeOthers | MaybeMine  | NextBest | Loser | Winner
+  deriving (Eq, Ord, Show, Bounded, Enum)
+
+data Rank = Other | Corner | Centre
+  deriving (Eq, Ord, Show, Bounded, Enum)
+
+
+type Move = Position
+
 type Position = Int
 opposition :: Position -> Position
 opposition p = 10 - p
+itsRank :: Position -> Rank
+itsRank p
+ | aCorner p = Corner
+ | theCentre p = Centre
+ | otherwise = Other
+rankPosition :: Position -> Position -> Ordering
+rankPosition p1 p2 = compare (itsRank p2) (itsRank p1)   -- reversed for descending
+
+winners :: [[Position]]
+winners = [[1,2,3], [4,5,6], [7,8,9], [1,4,7], [2,5,8], [3,6,9], [1,5,9], [3,5,7]]
+
+theCentre p = p == centre
+aCorner p = elem p corners
+
+corners :: [Position]
+corners = [1,3,7,9]
+
+centre :: Position
+centre = 5
+
 
 -- / Square
 data Square = Square {
@@ -208,38 +237,20 @@ rankIntersectionFor p i1 i2
 
 
 -- this is the meat of the "smarter" strategy
-scoreIntersectionFor :: Player -> Intersection -> Int
+scoreIntersectionFor :: Player -> Intersection -> Score
 scoreIntersectionFor p i
-
- -- has an about to win
- | length (Data.List.filter (\r -> ticCount p r == 2) itsTriples) > 0 = 12
- -- has an about to lose
- | length (Data.List.filter (\r -> ticCount o r == 2) itsTriples) > 0 = 11
+ | firstScore == Winner || firstScore == Loser = firstScore
  -- it's open corner & opponent occupies opposite
- | aCorner itsNexus && tic (squareAt opposite i) == otherPlayer p = 10
+ | firstScore > Blocked && aCorner itsNexus && tic (squareAt opposite i) == (otherPlayer p) = NextBest
  -- it's an open corner & opponent occupies adjacent corners
  -- (if opponent is allowed to tick, possibly creates two magic corners, making a block impossible)
- -- but, doesn't yet check if relevant squares are indeed open  <- this is why it can be tricked
- | aCorner itsNexus && occupiesAdjacentCorners i (otherPlayer p) = 9
- -- is a "magic junction", i.e. has two triples with tics
- | length (Data.List.filter (\r -> ticCount p r == 1) itsTriples) > 1 = 8
- -- is an opponent's "magic junction"
- | length (Data.List.filter (\r -> ticCount o r == 1) itsTriples) > 1 = 7
- -- is the centre
- | theCentre itsNexus = 6
- -- is corner with "connected" tics for opponent
- | aCorner itsNexus && length (Data.List.filter (\r -> ticCount o r == 1) itsTriples) > 0 = 5
- -- is corner with "connected" tics for self
- | aCorner itsNexus && length (Data.List.filter (\r -> ticCount p r == 1) itsTriples) > 0 = 4
- -- is a corner
- | aCorner itsNexus = 3
- -- otherwise, sum unblocked ticks, at this point,
- -- intutively suspect this will always be 2 or less (if reached), but haven't proved it
- | otherwise = ticCountSumUseful p itsTriples
- where itsTriples = triples i
-       itsNexus = nexus i
-       opposite = opposition itsNexus  -- "opposite position"
-       o = otherPlayer p
+ | firstScore > Blocked && aCorner itsNexus && occupiesAdjacentCorners i (otherPlayer p) = NextBest
+ | otherwise = firstScore
+  where itsNexus = nexus i
+        scores = reverse $ sort $ Data.List.map (\sql -> scoreSqListFor p sql) (triples i)
+        firstScore = head scores
+        opposite = opposition itsNexus  -- "opposite position"
+
 
 occupiesAdjacentCorners :: Intersection -> Player -> Bool
 occupiesAdjacentCorners i py = and (Data.List.map (\ac-> ((tic (squareAt ac i)))  == py) (adjacentCorners (nexus i)))
@@ -254,53 +265,29 @@ adjacentCorners :: Position -> [Position]
 adjacentCorners p = snd $ head $ Data.List.filter (\adj -> fst adj == p) adjs
   where adjs = [ (1,[3,7]), (2,[1,3]), (3,[1,9]), (4,[1,7]), (5, [1,3,7,9]), (6, [3,9]), (7, [1,9]), (8, [7,9]), (9, [3,7])]
 
--- order triples by how 'good' they are for Player
-rankTriples :: Board -> Player ->  [[Square]]
-rankTriples board player = sortBy  (rankSqLists player) (playableTriples board)
 
--- by score ... descending (compare is backwards)
-rankSqLists :: Player -> [Square] -> [Square] -> Ordering
-rankSqLists player first second
-  | score1st > score2nd = LT
-  | score1st < score2nd = GT
-  | otherwise = EQ
-  where score1st = scoreSqListFor player first
-        score2nd = scoreSqListFor player second
-
-scoreSqListFor :: Player -> [Square] -> Int
+--   for "rows" of squares ... logic makes no sense if this is a random collection of squares
+scoreSqListFor :: Player -> [Square] -> Score
 scoreSqListFor player sqs
-  | players + opponents == sqsLength = -1  -- played out
-  | players == sqsLength - 1 = 5           -- a winner
-  | opponents == sqsLength - 1 = 4         -- a loser
-  | players == 0 && opponents > 0 = 2      -- negate a claim
-  | opponents == 0 = 3                     -- stake/press a claim
-  | otherwise = 1                          -- doesn't really matter
+  | players + opponents == sqsLength = Unplayable   -- played out
+  | players == sqsLength - 1 = Winner               -- a winner
+  | opponents == sqsLength - 1 = Loser              -- a loser
+  | players > 0 && opponents > 0 = Blocked          -- blocked
+  | opponents == 0 = MaybeMine                      -- stake/press a claim
+  | players == 0 && opponents > 0 = MaybeOthers     -- negate a claim
+  | otherwise = Playable                                  -- doesn't really matter
   where sqsLength = length sqs
         players = ticCount player sqs
         opponent = otherPlayer player
         opponents = ticCount opponent sqs
 
--- by "value" of a position ... descending (compare is backwards)
--- Rank => Centre > Corner > Anything Else (which are themselves of equal rank)
-rankPosition :: Position -> Position -> Ordering
-rankPosition p1 p2
-  | p1 == 5 = LT
-  | p2 == 5 = GT
-  | elem p1 [1,3,7,9] = LT
-  | elem p2 [1,3,7,9] = GT
-  | otherwise = EQ
-
-theCentre p = p == centre
-aCorner p = elem p corners
-corners = [1,3,7,9]
-centre = 5
 
 -- \ game strategies
 
 -- / simple game strategy
 
 smartMove :: Board -> Board
-smartMove board = makeMove (pickUnplayedSquare $ head $ rankTriples board (whosMove board)) board
+smartMove board = makeMove (pickUnplayedSquare $ head $ rankBoardRows board (whosMove board)) board
 
 -- from a list of squares, return position of the 1st unticked one
 -- using fairly simple ranking
@@ -309,6 +296,21 @@ pickUnplayedSquare squares
   | length sqs == 0 = 0
   | otherwise = location $ head $ rankSquares sqs
   where sqs = Data.List.filter (\sq -> isUnplayed sq) squares
+
+
+-- order "rows" by how 'good' they are for Player
+rankBoardRows :: Board -> Player ->  [[Square]]
+rankBoardRows board player = sortBy  (rankSqList player) (playableTriples board)
+
+
+-- by score ... descending (compare is backwards)
+rankSqList :: Player -> [Square] -> [Square] -> Ordering
+rankSqList player first second
+  | score1st > score2nd = LT
+  | score1st < score2nd = GT
+  | otherwise = EQ
+  where score1st = scoreSqListFor player first
+        score2nd = scoreSqListFor player second
 
 --- order squares by "rank" descending
 rankSquares :: [Square] -> [Square]
@@ -378,8 +380,6 @@ winner :: Board -> Player -> Bool
 winner board player =  or $ Data.List.map (\w -> isInfixOf w ticked) winners
   where ticked = Data.List.map location (Data.List.filter (\sq -> (tic sq) == player) (squares board))
 
-winners :: [[Position]]
-winners = [[1,2,3], [4,5,6], [7,8,9], [1,4,7], [2,5,8], [3,6,9], [1,5,9], [3,5,7]]
 
 theWinner :: Board -> Player
 theWinner board = fst $ whoWonMoves board
