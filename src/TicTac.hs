@@ -6,8 +6,41 @@ import Data.Set
 import MyLists
 
 data Player = N | X | O
+  deriving (Eq, Show, Ord, Bounded, Enum)
+
+data Location = TLC | TM | TRC | LM | CTR | RM | BLC | BM | BRC
   deriving (Eq, Ord, Show, Bounded, Enum)
 
+lOpposite :: Location -> Location
+lOpposite l
+  | l == TLC = BRC
+  | l == TM = BM
+  | l == TRC = BLC
+  | l == LM = RM
+  | l == CTR = CTR
+  | l == RM = LM
+  | l == BLC = TRC
+  | l == BM = TM
+  | l == BRC = TLC
+
+lCorners = [ TLC, TRC, BLC, BRC ]
+lCentre = [ CTR ]
+lOther = [ TM, LM, RM, BM ]
+
+lWinners :: [[Location]]
+lWinners = [[TLC, TM, TRC], [LM, CTR, RM], [BLC, BM, BRC], [TLC, CTR, BRC], [TM, CTR, BM], [TRC, RM, BRC], [TLC, CTR, BRC], [TRC, CTR, BLC]]
+
+isWinner :: [Location] -> Bool
+isWinner ls = elem ls lWinners
+
+isRank :: Rank -> Location -> Bool
+isRank r l = whatRank l == r
+
+whatRank :: Location -> Rank
+whatRank l
+  | elem l lCorners = Corner
+  | elem l lCentre = Centre
+  | otherwise = Other
 
 data Score =  Unplayable | Blocked | Playable | MaybeOther | MaybeMe | ForkableOther | ForkableMe | Loser | Winner
   deriving (Eq, Ord, Show, Bounded, Enum)
@@ -16,7 +49,7 @@ data Rank = Other | Corner | Centre
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 
-type Move = Position
+type Move = Int
 
 type Position = Int
 opposition :: Position -> Position
