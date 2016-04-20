@@ -8,41 +8,48 @@ import MyLists
 data Player = N | X | O
   deriving (Eq, Show, Ord, Bounded, Enum)
 
-data Location = NOL | TLC | TM | TRC | LM | CTR | RM | BLC | BM | BRC
-  deriving (Eq, Ord, Show, Bounded, Enum)
+data Row = T | M | B
+  deriving (Eq, Show, Ord, Bounded, Enum)
+data Column = L | C | R
+  deriving (Eq, Show, Ord, Bounded, Enum)
+
+type Location = (Row, Column)
 
 usableLocations :: [Location]
-usableLocations = [l | l <- fullRange, l /= NOL]
+usableLocations = [(r,c)| r <- fullRange, c <- fullRange]
 
 rankLocation :: Location -> Location -> Ordering
 rankLocation p1 p2 = compare (itsRank p1) (itsRank p2)
 
 opposite :: Location -> Location
 opposite l
-  | l == TLC = BRC
-  | l == TM = BM
-  | l == TRC = BLC
-  | l == LM = RM
-  | l == CTR = CTR
-  | l == RM = LM
-  | l == BLC = TRC
-  | l == BM = TM
-  | l == BRC = TLC
+  | l == (T, L) = (B, R)
+  | l == (T, C) = (B, C)
+  | l == (T, R) = (B, L)
+  | l == (M, L) = (M, R)
+  | l == (M, C) = (M, C)
+  | l == (M, R) = (M, L)
+  | l == (B, L) = (T, R)
+  | l == (B, C) = (T, C)
+  | l == (B, R) = (T, L)
 
-corners = [ TLC, TRC, BLC, BRC ]
-centre = [ CTR ]
-others = [ TM, LM, RM, BM ]
+corners :: [Location]
+corners = [ (T, L), (T, R), (B, L), (B, R) ]
+centre :: [Location]
+centre = [ (M, C) ]
+others :: [Location]
+others = [ (T, C), (B, C), (M, L), (M, R) ]
 
-theCentre l = isRank Centre l
+theCentre l = isRank Nexus l
 aCorner l = isRank Corner l
 
 winners :: [[Location]]
-winners = [[TLC, TM, TRC], [LM, CTR, RM], [BLC, BM, BRC], [TLC, CTR, BRC], [TM, CTR, BM], [TRC, RM, BRC], [TLC, CTR, BRC], [TRC, CTR, BLC]]
+winners = [[(T, L), (T, C), (T, R)], [(M, L), (M, C), (M, R)], [(B, L), (B, C), (B, R)], [(T, L), (M, L), (B, L)], [(T, C), (M, C), (B, C)], [(T, R), (M, R), (B, R)], [(T, L), (M, C), (B, R)], [(T, R), (M, C), (B, L)]]
 
 isWinner :: [Location] -> Bool
 isWinner ls = elem ls winners
 
-data Rank = Middle | Corner | Centre
+data Rank = Edge | Corner | Nexus
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 isRank :: Rank -> Location -> Bool
@@ -51,8 +58,8 @@ isRank r l = itsRank l == r
 itsRank :: Location -> Rank
 itsRank l
   | elem l corners = Corner
-  | elem l centre = Centre
-  | otherwise = Middle
+  | elem l centre = Nexus
+  | otherwise = Edge
 
 
 
@@ -137,14 +144,14 @@ data Intersection = Intersection  {
 
 -- / game play
 
-play :: Board -> Location -> Board
+play :: Board -> Maybe Location -> Board
 play board location = playUsing smarterMove board location
 
-playUsing :: Strategy -> Board -> Location -> Board
+playUsing :: Strategy -> Board -> Maybe Location -> Board
 playUsing  strategy board location
   | aWinner board = board
-  | location == NOL = strategy board
-  | otherwise = makeSuppliedMove location board
+  | location == Nothing = strategy board
+  | otherwise = makeSuppliedMove (fromJust location) board
 
 playARound :: Board -> Location -> Board
 playARound board location = playARoundUsing smarterMove board location
@@ -155,9 +162,7 @@ playARoundUsing strategy board location
   | aWinner nextBoard = nextBoard
   | otherwise = strategy nextBoard
   where nextBoard = firstMove board location
-        firstMove b l
-          | l == NOL = strategy b
-          | otherwise = makeSuppliedMove l b
+        firstMove b l = makeSuppliedMove l b
 
 
 
@@ -189,9 +194,7 @@ autoPlayAllUsing strategy = Data.List.map theWinner $ Data.List.map (autoPlayFro
 
 -- auto-play a single game, starting with supplied location, using default strategy
 autoPlayFrom :: Location -> Board
-autoPlayFrom start
-  | start == NOL = autoPlay board
-  | otherwise = autoPlay (makeSuppliedMove start board)
+autoPlayFrom start = autoPlay (makeSuppliedMove start board)
   where board = newBoard
 
 -- auto-play a single game, starting with supplied board (which may be partially played), using default strategy
@@ -242,16 +245,18 @@ autoPlayUsingTrack strategy boards
 -- streamlined strategy ... this will autoplay every starting location to a draw
 -- but can be defeated by a human with certain sequences
 smarterMove :: Board -> Board
-smarterMove board = makeMove loc board
+smarterMove board
+    | isJust loc = makeMove (fromJust loc) board
+    | otherwise = board
     where  player = whosMove board
            loc = betterUnplayedSquare board player
 
 -- from a list of squares, return the 1st unticked one of highest rank or 0
 -- using more involved ranking
-betterUnplayedSquare :: Board -> Player -> Location
+betterUnplayedSquare :: Board -> Player -> Maybe Location
 betterUnplayedSquare b p
- | length possiblePositions == 0 = NOL
- | otherwise = head possiblePositions
+ | length possiblePositions == 0 = Nothing
+ | otherwise = Just (head possiblePositions)
  where possiblePositions = rankUnplayedPositions b p
 
 -- returns unplayed positions ranked by most tics for player in its intersections
@@ -319,7 +324,7 @@ squareAt  p i = head $ Data.List.filter (\i -> location i == p) sqs
 
 adjacentCorners :: Location -> [Location]
 adjacentCorners p = snd $ head $ Data.List.filter (\adj -> fst adj == p) adjs
-  where adjs = [ (TLC,[TRC,BLC]), (TM,[TLC,TRC]), (TRC,[TLC,BRC]), (LM,[TLC,BLC]), (CTR, [TLC,TRC,BLC,BRC]), (RM, [TRC,BRC]), (BLC, [TLC,BRC]), (BM, [BLC,BRC]), (BRC, [TRC,BLC])]
+  where adjs = [ ((T, L),[(T, R),(B, L)]), ((T, C),[(T, L),(T, R)]), ((T, R),[(T, L),(B, R)]), ((M, L),[(T, L),(B, L)]), ((M, C), [(T, L),(T, R),(B, L),(B, R)]), ((M, R), [(T, R),(B, R)]), ((B, L), [(T, L),(B, R)]), ((B, C), [(B, L),(B, R)]), ((B, R), [(T, R),(B, L)])]
 
 
 --   for "rows" of squares ... logic makes no sense if this is a random collection of squares
@@ -345,14 +350,17 @@ scoreSqListFor player sqs
 -- / simple game strategy
 
 smartMove :: Board -> Board
-smartMove board = makeMove (pickUnplayedSquare $ head $ rankBoardRows board (whosMove board)) board
+smartMove board
+  | isJust loc = makeMove (fromJust loc) board
+  | otherwise = board
+  where loc = pickUnplayedSquare $ head $ rankBoardRows board (whosMove board)
 
 -- from a list of squares, return location of the 1st unticked one
 -- using fairly simple ranking
-pickUnplayedSquare :: [Square] -> Location
+pickUnplayedSquare :: [Square] -> Maybe Location
 pickUnplayedSquare squares
-  | length sqs == 0 = NOL
-  | otherwise = location $ head $ rankSquares sqs
+  | length sqs == 0 = Nothing
+  | otherwise = Just (location $ head $ rankSquares sqs)
   where sqs = Data.List.filter (\sq -> isUnplayed sq) squares
 
 
