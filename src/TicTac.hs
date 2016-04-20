@@ -9,7 +9,7 @@ data Player = N | X | O
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 
-data Score =  Unplayable | Blocked | Playable | MaybeOthers | MaybeMine  | NextBest | Loser | Winner
+data Score =  Unplayable | Blocked | Playable | MaybeOthers | MaybeMine | Loser | Winner
   deriving (Eq, Ord, Show, Bounded, Enum)
 
 data Rank = Other | Corner | Centre
@@ -27,7 +27,7 @@ itsRank p
  | theCentre p = Centre
  | otherwise = Other
 rankPosition :: Position -> Position -> Ordering
-rankPosition p1 p2 = compare (itsRank p2) (itsRank p1)   -- reversed for descending
+rankPosition p1 p2 = compare (itsRank p1) (itsRank p2)    -- reversed for descending
 
 winners :: [[Position]]
 winners = [[1,2,3], [4,5,6], [7,8,9], [1,4,7], [2,5,8], [3,6,9], [1,5,9], [3,5,7]]
@@ -135,8 +135,12 @@ playARound board position = playARoundUsing smarterMove board position
 playARoundUsing  :: Strategy -> Board -> Position -> Board
 playARoundUsing strategy board position
   | aWinner board = board
-  | position < 1 || position > 9 = strategy $ strategy board
-  | otherwise = strategy (makeThisMove position board)
+  | aWinner nextBoard = nextBoard
+  | otherwise = strategy nextBoard
+  where nextBoard = firstMove board position
+        firstMove b p
+          | p < 1 || p > 9 = strategy b
+          | otherwise = makeThisMove p b
 
 {-
 ghci> autoPlayAllUsing smartMove
@@ -231,24 +235,41 @@ rankIntersectionFor :: Player -> Intersection -> Intersection -> Ordering
 rankIntersectionFor p i1 i2
   | i1Score > i2Score = LT
   | i1Score < i2Score = GT
-  | i1Score == i2Score = rankPosition (nexus i1) (nexus i2)
+  | i1Score == i2Score && i1Nexus > i2Nexus = LT
+  | i1Score == i2Score && i1Nexus < i2Nexus = GT
+  | otherwise = EQ
   where i1Score = scoreIntersectionFor p i1
         i2Score = scoreIntersectionFor p i2
+        i1Nexus = nexus i1
+        i2Nexus = nexus i2
 
 
 -- this is the meat of the "smarter" strategy
-scoreIntersectionFor :: Player -> Intersection -> Score
+scoreIntersectionFor :: Player -> Intersection -> Int
 scoreIntersectionFor p i
- | firstScore == Winner || firstScore == Loser = firstScore
+ -- winner or loser, easy choice
+ | elem Winner scores || elem Loser scores = 18
+ -- magic square for me
+ | (length $ Data.List.filter (== MaybeMine) scores) > 1 = 16
+ -- magic square for opponent
+ | (length $ Data.List.filter (== MaybeOthers) scores) > 1 = 14
+ -- it's an open centre
+ | unblocked && theCentre itsNexus  = 12
  -- it's open corner & opponent occupies opposite
- | firstScore > Blocked && aCorner itsNexus && tic (squareAt opposite i) == (otherPlayer p) = NextBest
+ | unblocked && aCorner itsNexus && tic (squareAt opposite i) == (otherPlayer p) = 10
  -- it's an open corner & opponent occupies adjacent corners
- -- (if opponent is allowed to tick, possibly creates two magic corners, making a block impossible)
- | firstScore > Blocked && aCorner itsNexus && occupiesAdjacentCorners i (otherPlayer p) = NextBest
- | otherwise = firstScore
+ | unblocked && aCorner itsNexus && occupiesAdjacentCorners i (otherPlayer p) = 8
+ -- it's an open corner
+ | unblocked && aCorner itsNexus  = 6
+ -- it possess some other advantage ...
+ | or $ Data.List.map (> Playable) scores = 4
+ -- well, it isn't blocked at least
+ | unblocked = 2
+ -- we're on our way to a draw
+ | otherwise = 0
   where itsNexus = nexus i
         scores = reverse $ sort $ Data.List.map (\sql -> scoreSqListFor p sql) (triples i)
-        firstScore = head scores
+        unblocked = or $ Data.List.map (> Blocked) scores
         opposite = opposition itsNexus  -- "opposite position"
 
 
