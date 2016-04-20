@@ -8,11 +8,17 @@ import MyLists
 data Player = N | X | O
   deriving (Eq, Show, Ord, Bounded, Enum)
 
-data Location = TLC | TM | TRC | LM | CTR | RM | BLC | BM | BRC
+data Location = NOL | TLC | TM | TRC | LM | CTR | RM | BLC | BM | BRC
   deriving (Eq, Ord, Show, Bounded, Enum)
 
-lOpposite :: Location -> Location
-lOpposite l
+usableLocations :: [Location]
+usableLocations = [l | l <- fullRange, l /= NOL]
+
+rankLocation :: Location -> Location -> Ordering
+rankLocation p1 p2 = compare (itsRank p1) (itsRank p2)
+
+opposite :: Location -> Location
+opposite l
   | l == TLC = BRC
   | l == TM = BM
   | l == TRC = BLC
@@ -23,61 +29,42 @@ lOpposite l
   | l == BM = TM
   | l == BRC = TLC
 
-lCorners = [ TLC, TRC, BLC, BRC ]
-lCentre = [ CTR ]
-lOther = [ TM, LM, RM, BM ]
+corners = [ TLC, TRC, BLC, BRC ]
+centre = [ CTR ]
+others = [ TM, LM, RM, BM ]
 
-lWinners :: [[Location]]
-lWinners = [[TLC, TM, TRC], [LM, CTR, RM], [BLC, BM, BRC], [TLC, CTR, BRC], [TM, CTR, BM], [TRC, RM, BRC], [TLC, CTR, BRC], [TRC, CTR, BLC]]
+theCentre l = isRank Centre l
+aCorner l = isRank Corner l
+
+winners :: [[Location]]
+winners = [[TLC, TM, TRC], [LM, CTR, RM], [BLC, BM, BRC], [TLC, CTR, BRC], [TM, CTR, BM], [TRC, RM, BRC], [TLC, CTR, BRC], [TRC, CTR, BLC]]
 
 isWinner :: [Location] -> Bool
-isWinner ls = elem ls lWinners
+isWinner ls = elem ls winners
+
+data Rank = Middle | Corner | Centre
+  deriving (Eq, Ord, Show, Bounded, Enum)
 
 isRank :: Rank -> Location -> Bool
-isRank r l = whatRank l == r
+isRank r l = itsRank l == r
 
-whatRank :: Location -> Rank
-whatRank l
-  | elem l lCorners = Corner
-  | elem l lCentre = Centre
-  | otherwise = Other
+itsRank :: Location -> Rank
+itsRank l
+  | elem l corners = Corner
+  | elem l centre = Centre
+  | otherwise = Middle
+
+
+
 
 data Score =  Unplayable | Blocked | Playable | MaybeOther | MaybeMe | ForkableOther | ForkableMe | Loser | Winner
   deriving (Eq, Ord, Show, Bounded, Enum)
 
-data Rank = Other | Corner | Centre
-  deriving (Eq, Ord, Show, Bounded, Enum)
-
-
 type Move = Int
-
-type Position = Int
-opposition :: Position -> Position
-opposition p = 10 - p
-itsRank :: Position -> Rank
-itsRank p
- | aCorner p = Corner
- | theCentre p = Centre
- | otherwise = Other
-rankPosition :: Position -> Position -> Ordering
-rankPosition p1 p2 = compare (itsRank p1) (itsRank p2)    -- reversed for descending
-
-winners :: [[Position]]
-winners = [[1,2,3], [4,5,6], [7,8,9], [1,4,7], [2,5,8], [3,6,9], [1,5,9], [3,5,7]]
-
-theCentre p = p == centre
-aCorner p = elem p corners
-
-corners :: [Position]
-corners = [1,3,7,9]
-
-centre :: Position
-centre = 5
-
 
 -- / Square
 data Square = Square {
-                 location :: Position,
+                 location :: Location,
                  tic :: Player,
                  move :: Move }
               deriving (Eq, Ord)
@@ -86,6 +73,7 @@ instance Show Square
   where show square@(Square l p m) = showSquare (square)
 showSquare :: Square -> String
 showSquare (Square {location = l, tic = p, move = m}) = "|" ++ show l ++ ":" ++ show p ++ ":" ++ show m ++ "|"
+
 -- \ Square
 
 -- / Board
@@ -94,11 +82,7 @@ data Board = Board  {
              deriving (Eq)
 
 newBoard :: Board
-newBoard = Board (Data.List.map (\i -> Square i N 0) [1..9])
-
-oppositeSq :: Board -> Square -> Square
-oppositeSq board (Square p _ _)  = squareFor board p
-
+newBoard = Board (Data.List.map (\i -> Square i N 0) usableLocations)
 
 instance Show Board
   where show (Board sqs)  = showBoard (Board sqs)
@@ -111,16 +95,13 @@ showBoard b@(Board {squares = sqs} ) =  (fst (squaresToGrid ("", sqs))) ++ (boar
           | otherwise = (show nextPlayer) ++ " to move\n"
           where whoWon = theWinner b
                 nextPlayer = whosMove b
-
-
-squaresToGrid :: (String , [Square]) -> (String, [Square])
-squaresToGrid (gridString, squares)
-  | length squares == 0 = (gridString, squares)
-  | otherwise =  squaresToGrid ((gridString ++ (removeDupes (concat (Data.List.map justTic row))) ++ "\n"), whatsLeft)
-  where (row, whatsLeft) = splitAt 3 squares
-        justTic :: Square -> String
-        justTic square  = "|" ++ show (tic square) ++ "|"
-
+        squaresToGrid :: (String , [Square]) -> (String, [Square])
+        squaresToGrid (gridString, squares)
+          | length squares == 0 = (gridString, squares)
+          | otherwise =  squaresToGrid ((gridString ++ (removeDupes (concat (Data.List.map justTic row))) ++ "\n"), whatsLeft)
+          where (row, whatsLeft) = splitAt 3 squares
+                justTic :: Square -> String
+                justTic square  = "|" ++ show (tic square) ++ "|"
 -- \ Board
 
 -- / Game
@@ -147,60 +128,60 @@ type Strategy = (Board -> Board)
 type Scorer = (Player -> Intersection -> Int)
 
 data Intersection = Intersection  {
-                      nexus :: Position,
+                      nexus :: Location,
                       rows :: [[Square]] }
                     deriving (Eq, Show)
 
 -- / game play
 
-play :: Board -> Position -> Board
-play board position = playUsing smarterMove board position
+play :: Board -> Location -> Board
+play board location = playUsing smarterMove board location
 
-playUsing :: Strategy -> Board -> Position -> Board
-playUsing  strategy board position
+playUsing :: Strategy -> Board -> Location -> Board
+playUsing  strategy board location
   | aWinner board = board
-  | position < 1 || position > 9 = strategy board
-  | otherwise = makeThisMove position board
+  | location == NOL = strategy board
+  | otherwise = makeSuppliedMove location board
 
-playARound :: Board -> Position -> Board
-playARound board position = playARoundUsing smarterMove board position
+playARound :: Board -> Location -> Board
+playARound board location = playARoundUsing smarterMove board location
 
-playARoundUsing  :: Strategy -> Board -> Position -> Board
-playARoundUsing strategy board position
+playARoundUsing  :: Strategy -> Board -> Location -> Board
+playARoundUsing strategy board location
   | aWinner board = board
   | aWinner nextBoard = nextBoard
   | otherwise = strategy nextBoard
-  where nextBoard = firstMove board position
-        firstMove b p
-          | p < 1 || p > 9 = strategy b
-          | otherwise = makeThisMove p b
+  where nextBoard = firstMove board location
+        firstMove b l
+          | l == NOL = strategy b
+          | otherwise = makeSuppliedMove l b
 
 {-
 ghci> autoPlayAllUsing smartMove
-[N,N,N,N,N,N,N,X,X]  <- X wins when starting with position 8 or 9
+[N,N,O,N,X,N,N,N,N]
 ghci> autoPlayAllUsing smarterMove
-[N,N,N,N,N,N,N,N,N] <- plays to draw in all cases
+[N,N,N,N,N,N,N,N,N]
 ghci>
 -}
 
 -- for all of the auto-play strategies accepting a starting board -
--- if this board is in an invalid state, results are unpredictable
+-- if the supplied board is in an invalid state, results are unpredictable
 
 -- auto-play from all possible starting positions, return list of winner for each game
 autoPlayAllUsing :: Strategy -> [Player]
-autoPlayAllUsing strategy = Data.List.map theWinner $ Data.List.map (autoPlayFromUsing strategy) [1..9]
+autoPlayAllUsing strategy = Data.List.map theWinner $ Data.List.map (autoPlayFromUsing strategy) usableLocations
 
--- auto-play a single game, starting with supplied position, using default strategy
-autoPlayFrom :: Position -> Board
-autoPlayFrom start = autoPlay (makeThisMove start board)
+-- auto-play a single game, starting with supplied location, using default strategy
+autoPlayFrom :: Location -> Board
+autoPlayFrom start = autoPlay (makeSuppliedMove start board)
   where board = newBoard
 
 -- auto-play a single game, starting with supplied board (which may be partially played), using default strategy
 autoPlay :: Board -> Board
 autoPlay board = autoPlayUsing smarterMove board
 
--- auto-play a single game, starting with supplied position, using supplied strategy
-autoPlayFromUsing :: Strategy -> Position -> Board
+-- auto-play a single game, starting with supplied location, using supplied strategy
+autoPlayFromUsing :: Strategy -> Location -> Board
 autoPlayFromUsing strategy start = autoPlayUsing strategy (makeMove start board)
   where board = newBoard
         player = whosMove board
@@ -219,9 +200,9 @@ autoPlayTrack :: [Board] -> [Board]
 autoPlayTrack boards = autoPlayUsingTrack smarterMove boards
 
 
--- auto-play a single game, starting with supplied position & strategy
+-- auto-play a single game, starting with supplied location & strategy
 -- prepend board to list after each move
-autoPlayFromUsingTrack :: Strategy -> Position -> [Board]
+autoPlayFromUsingTrack :: Strategy -> Location -> [Board]
 autoPlayFromUsingTrack strategy start = autoPlayUsingTrack strategy ([makeMove start board])
   where board = newBoard
         player = whosMove board
@@ -240,7 +221,7 @@ autoPlayUsingTrack strategy boards
 -- / game strategies
 
 -- given a board, try to make best next move
--- streamlined strategy ... this will autoplay every starting position to a draw
+-- streamlined strategy ... this will autoplay every starting location to a draw
 -- but can be defeated by a human with certain sequences
 smarterMove :: Board -> Board
 smarterMove board = makeMove loc board
@@ -249,19 +230,19 @@ smarterMove board = makeMove loc board
 
 -- from a list of squares, return the 1st unticked one of highest rank or 0
 -- using more involved ranking
-betterUnplayedSquare :: Board -> Player -> Int
+betterUnplayedSquare :: Board -> Player -> Location
 betterUnplayedSquare b p
- | length possiblePositions == 0 = 0
+ | length possiblePositions == 0 = NOL
  | otherwise = head possiblePositions
  where possiblePositions = rankUnplayedPositions b p
 
 -- returns unplayed positions ranked by most tics for player in its intersections
-rankUnplayedPositions :: Board -> Player -> [Position]
+rankUnplayedPositions :: Board -> Player -> [Location]
 rankUnplayedPositions b p =
  Data.List.map nexus (sortBy (rankIntersectionFor p) (byIntersectionsUnplayed b))
 
 -- if one intersection has a better score, it's better
--- if they're the same, rank by their position
+-- if they're the same, rank by their location
 -- ... all descending, which is why they look backwards
 -- avoids (albeit minor in this case) reverse expense ... because I never want them ascending
 rankIntersectionFor :: Player -> Intersection -> Intersection -> Ordering
@@ -287,7 +268,7 @@ scoreIntersectionFor p i
  -- magic square for opponent
  | (length $ Data.List.filter (== ForkableOther) scoresMe) > 1 = 28
  -- it's open corner & opponent occupies opposite
- | unblocked && aCorner itsNexus && tic (squareAt opposite i) == op = 8
+ | unblocked && aCorner itsNexus && tic (squareAt itsOpposite i) == op = 8
  -- it's an open centre
  | unblocked && theCentre itsNexus  = 10
  -- it's an open corner
@@ -304,8 +285,9 @@ scoreIntersectionFor p i
         scoredOp = Data.List.map (\sql -> scoreSqListFor op sql) (rows i)
         scoresOp = Data.List.map fst scoredOp
         unblocked = or $ Data.List.map (> Blocked) scoresMe
-        opposite = opposition itsNexus  -- "opposite position"
+        itsOpposite = opposite itsNexus  -- "opposite location"
         op = otherPlayer p
+
 
 
 occupiesAdjacentCorners :: Intersection -> Player -> Bool
@@ -313,13 +295,13 @@ occupiesAdjacentCorners i py = and (Data.List.map (\ac-> ((tic (squareAt ac i)))
 
 -- index a square out of an intersection's "rows"
 -- caller knows it will be there, so doesn't protect against empty list
-squareAt :: Position -> Intersection -> Square
+squareAt :: Location -> Intersection -> Square
 squareAt  p i = head $ Data.List.filter (\i -> location i == p) sqs
   where sqs = concat (rows i)
 
-adjacentCorners :: Position -> [Position]
+adjacentCorners :: Location -> [Location]
 adjacentCorners p = snd $ head $ Data.List.filter (\adj -> fst adj == p) adjs
-  where adjs = [ (1,[3,7]), (2,[1,3]), (3,[1,9]), (4,[1,7]), (5, [1,3,7,9]), (6, [3,9]), (7, [1,9]), (8, [7,9]), (9, [3,7])]
+  where adjs = [ (TLC,[TRC,BLC]), (TM,[TLC,TRC]), (TRC,[TLC,BRC]), (LM,[TLC,BLC]), (CTR, [TLC,TRC,BLC,BRC]), (RM, [TRC,BRC]), (BLC, [TLC,BRC]), (BM, [BLC,BRC]), (BRC, [TRC,BLC])]
 
 
 --   for "rows" of squares ... logic makes no sense if this is a random collection of squares
@@ -347,11 +329,11 @@ scoreSqListFor player sqs
 smartMove :: Board -> Board
 smartMove board = makeMove (pickUnplayedSquare $ head $ rankBoardRows board (whosMove board)) board
 
--- from a list of squares, return position of the 1st unticked one
+-- from a list of squares, return location of the 1st unticked one
 -- using fairly simple ranking
-pickUnplayedSquare :: [Square] -> Int
+pickUnplayedSquare :: [Square] -> Location
 pickUnplayedSquare squares
-  | length sqs == 0 = 0
+  | length sqs == 0 = NOL
   | otherwise = location $ head $ rankSquares sqs
   where sqs = Data.List.filter (\sq -> isUnplayed sq) squares
 
@@ -375,7 +357,7 @@ rankSquares :: [Square] -> [Square]
 rankSquares squares = sortBy rankSquare squares
 
 rankSquare :: Square -> Square -> Ordering
-rankSquare sq1 sq2 = rankPosition (location sq1) (location sq2)
+rankSquare sq1 sq2 = rankLocation (location sq1) (location sq2)
 
 -- \ simple game strategy
 
@@ -391,13 +373,13 @@ ticCount :: Player -> [Square] -> Int
 ticCount player squares = length $ Data.List.filter (\a -> tic a == player) squares
 
 -- squares with supplied positions
-squaresFor :: Board -> [Position] -> [Square]
+squaresFor :: Board -> [Location] -> [Square]
 squaresFor b ps =  Data.List.map (squareFor b) ps
 
--- square with supplied position
--- this is meant to be the only place where board index == position - 1 matters
-squareFor :: Board -> Position -> Square
-squareFor b p =  (squares b) !! (p-1)
+-- square with supplied location
+-- this is meant to be the only place where board index == location - 1 matters
+squareFor :: Board -> Location -> Square
+squareFor b l =  head $ Data.List.filter (\sq -> (location sq) == l)(squares b)
 
 isUnplayedFor :: Player -> [Square] -> Bool
 isUnplayedFor p squares = length (Data.List.filter (\sq -> tic sq == p) squares) == 0
@@ -405,7 +387,7 @@ isUnplayedFor p squares = length (Data.List.filter (\sq -> tic sq == p) squares)
 hasUnplayed :: [Square] -> Bool
 hasUnplayed squares = length (Data.List.filter (\sq -> tic sq == N) squares) > 0
 
-isUnplayedPosition :: Board -> Position -> Bool
+isUnplayedPosition :: Board -> Location -> Bool
 isUnplayedPosition b p = isUnplayed (squareFor b p)
 
 isUnplayed :: Square -> Bool
@@ -423,16 +405,16 @@ playableRows board = Data.List.filter hasUnplayed (winningRows board)
 winningRows :: Board -> [[Square]]
 winningRows board = Data.List.map (\w -> squaresFor board w) winners
 
--- given a position & board, return postion's winning combos from board
-winnersFor :: Position -> Board -> [[Square]]
+-- given a location & board, return postion's winning combos from board
+winnersFor :: Location -> Board -> [[Square]]
 winnersFor thePosition board = (Data.List.filter (\w -> elem thePosition (Data.List.map location w))) (winningRows board)
 
 byIntersectionsUnplayed :: Board -> [Intersection]
 byIntersectionsUnplayed b =  Data.List.filter (\i -> isUnplayedPosition b (nexus i)) (byIntersections b)
 
--- represent a board as a list of intersections for each position
+-- represent a board as a list of intersections for each location
 byIntersections :: Board -> [Intersection]
-byIntersections  board = Data.List.map (\p -> Intersection p (winnersFor p board)) [1..9]
+byIntersections  board = Data.List.map (\l -> Intersection l (winnersFor l board)) usableLocations
 
 winner :: Board -> Player -> Bool
 winner board player =  or $ Data.List.map (\w -> isInfixOf w ticked) winners
@@ -459,7 +441,7 @@ movesMade :: Board -> Int
 movesMade b = 9 - length (unplayedSquares (squares b))
 
 -- give all moves made by winning player, not just winning sequence
-howWon :: Board -> (Player, [Position])
+howWon :: Board -> (Player, [Location])
 howWon board = (winner, Data.List.map location sqForWinner)
   where winner = theWinner board
         sqForWinner = [sq | sq <- (squares board), tic sq == winner]
@@ -506,44 +488,41 @@ otherPlayer p
 
 -- / mechanics
 
--- given a position, tic for next player
+-- given a location, tic for next player
 -- ignore if square is occupied
-makeThisMove :: Position -> Board -> Board
-makeThisMove p b
+makeSuppliedMove :: Location -> Board -> Board
+makeSuppliedMove p b
   | not $ (isUnplayed $ squareFor b p) = b
   | otherwise = makeMove p b
 
 
-makeMove :: Position -> Board -> Board
-makeMove loc board
-  | loc == 0 = board
-  | loc == 1 = Board (square : rightBoard)
-  | loc == 9 = Board ((init (squares board)) ++ [square])
-  | otherwise = Board (init leftBoard ++ [square] ++ rightBoard)
-  where (leftBoard, rightBoard) = splitAt loc (squares board)
-        square = Square loc (whosMove board) (whichMove board)
+makeMove :: Location -> Board -> Board
+makeMove loc board = Board  (sort (square:[sq | sq <- squares board, location sq /= loc]))
+  where square = Square loc (whosMove board) (whichMove board)
 
 -- \ mechanics
 
 -- / programmed play ... useful for testing
 
 -- play a supplied sequence of moves, alternating players
-playMoves :: [Position] -> Board
+playMoves :: [Location] -> Board
 playMoves ps =  snd (moveThrough (ps, newBoard))
+
 
 -- play pre-defined game # n, return the board when game ends
 -- 362,880 possible game sequences (although there's only 26,830 distinct games)
 playGame :: Int -> Board
 playGame n =  snd (moveThrough (game, newBoard))
-  where game = permu [1..9] !! mod n 362880
+  where game = permu usableLocations !! mod n 362880
+
 
 -- given a sequence of moves & a board,
 -- play until someone wins or no more moves
-moveThrough :: ([Position], Board) -> ([Position], Board)
+moveThrough :: ([Location], Board) -> ([Location], Board)
 moveThrough (unplayedSquares, board)
   | length unplayedSquares == 0 = (unplayedSquares, board)
   | aWinner board = (unplayedSquares, board)
-  | otherwise = moveThrough (tail unplayedSquares, (makeThisMove (head unplayedSquares) board))
+  | otherwise = moveThrough (tail unplayedSquares, (makeSuppliedMove (head unplayedSquares) board))
 
 -- \ programmed play
 
