@@ -3,7 +3,7 @@ module TicTac where
 import Data.List
 import Data.Maybe
 import Data.Set
-import MyLists
+
 
 data Player = N | X | O
   deriving (Eq, Show, Ord, Bounded, Enum)
@@ -124,17 +124,50 @@ data Game = Game {
 instance Show Game
   where show (Game bds) = showGame (Game bds)
 showGame :: Game -> String
-showGame (Game {boards = bds}) = (gameString "Game sequence: \n" bds) ++ "Moves: " ++ movesMade
+showGame (Game {boards = bds}) = (gameString "Game sequence: \n" bds) ++ "Moves: " ++ movesMade ++ "\n"
   where movesMade
           | length bds < 2 = "none"
           | otherwise = show $ movesList (head bds) (last bds)
 
+
+asGame :: Board -> Game
+asGame b = Game [newBoard, b]
+
+gameOutcome :: Game -> (Player, Int)
+gameOutcome Game{boards=bds}
+  | length bds == 0 = (N,0)
+  | otherwise = (theWinner $ ending, movesCount ending)
+  where ending = last bds
 
 gameString :: String -> [Board] -> String
 gameString s [] = s ++ "No boards!"
 gameString s (b:bds)
   | length bds == 0 = s ++ show b ++ "\n" ++ show (movesCount b) ++ " moves made\n"
   | otherwise = gameString (s ++ show b ++ "\n") bds
+
+
+-- Given a strategy, a board, play against it ... return possible outcomes and sequence of moves
+checkStrategy :: Strategy -> Board -> [(Player, [Square])]
+checkStrategy s b = [(N, [])]
+
+
+playPossibleRounds :: [Board] -> [[Board]]
+playPossibleRounds bl =  Data.List.map (autoNextMove smarterMove) $ playPossibles bl
+
+
+-- for the head of a list of boards, prepend all of the next possible moves
+playPossibles :: [Board] -> [[Board]]
+playPossibles (bb:bs) =  Data.List.map (\ba -> ba:(bb:bs)) nextMoves
+  where unplayedLocations = Data.List.map location $ Data.List.filter isUnplayed $ squares bb
+        nextMoves = Data.List.map (makeSuppliedMove bb) unplayedLocations
+
+
+-- Data.List.map (autoNextMove smarterMove) $ playPossibles [newBoard]
+
+-- for a list of boards, prepend next move using strategy
+autoNextMove :: Strategy -> [Board] -> [Board]
+autoNextMove  _ [] = []
+autoNextMove s (b:bs) = s b : (b:bs)
 
 -- \ Game
 
@@ -161,7 +194,7 @@ play b i
 playl :: Board -> Location -> Board
 playl  b l
   | aWinner b = b
-  | otherwise = makeSuppliedMove l b
+  | otherwise = makeSuppliedMove b l
 
 playUsing :: Strategy -> Board -> Board
 playUsing  s b
@@ -181,7 +214,7 @@ playARoundUsing s b i
        nextBoard = firstMove b ml
        firstMove b ml
          | isNothing ml = s b
-         | otherwise = makeSuppliedMove (fromJust ml) b
+         | otherwise = makeSuppliedMove  b (fromJust ml)
 
 
 
@@ -202,7 +235,7 @@ autoPlayAllUsing strategy = Data.List.map theWinner $ Data.List.map (autoPlayFro
 
 -- auto-play a single game, starting with supplied location, using default strategy
 autoPlayFrom :: Location -> Board
-autoPlayFrom start = autoPlay (makeSuppliedMove start board)
+autoPlayFrom start = autoPlay (makeSuppliedMove board start)
   where board = newBoard
 
 -- auto-play a single game, starting with supplied board (which may be partially played), using default strategy
@@ -556,14 +589,14 @@ whosMove b
  | movesLeft == 0 = N
  | mod movesLeft 2 == 0 = O
  | otherwise = X
- where movesLeft = length (unplayedSquares (squares b))
+ where movesLeft = length . unplayedSquares $ squares b
 
 whichMove :: Board -> Move
-whichMove b = 10 - length (unplayedSquares (squares b))
+whichMove b = 10 - (length . unplayedSquares $ squares b)
 
 boardMoves :: [Board] -> [Square]
 boardMoves [] = []
-boardMoves (bb:ba:bs) = (diffBoards ba bb) ++ boardMoves(ba:bs)
+boardMoves (bb:ba:bs) = (diffBoards ba bb) ++ boardMoves (ba:bs)
 boardMoves (bb:bs)
  | length bs == 0 = []
  | otherwise = (diffBoards (head bs) bb)
@@ -572,7 +605,7 @@ diffBoards :: Board -> Board -> [Square]
 diffBoards b1 b2 = diffSquares (squares b1) (squares b2)
 
 diffSquares :: [Square] -> [Square] -> [Square]
-diffSquares sqs1 sqs2 = toList (difference  (fromList sqs2) (fromList sqs1))
+diffSquares sqs1 sqs2 = toList $ difference  (fromList sqs2) (fromList sqs1)
 
 unplayedSquares :: [Square] -> [Square]
 unplayedSquares b = Data.List.filter (\sq -> tic sq == N) b
@@ -594,14 +627,14 @@ otherPlayer p
 
 -- given a location, tic for next player
 -- ignore if square is occupied
-makeSuppliedMove :: Location -> Board -> Board
-makeSuppliedMove p b
+makeSuppliedMove :: Board -> Location -> Board
+makeSuppliedMove b p
   | not $ (isUnplayed $ squareFor b p) = b
   | otherwise = makeMove p b
 
 
 makeMove :: Location -> Board -> Board
-makeMove loc board = Board  (sort (square:[sq | sq <- squares board, location sq /= loc]))
+makeMove loc board = Board  (sort $ square:[sq | sq <- squares board, location sq /= loc])
   where square = Square loc (whosMove board) (whichMove board)
 
 -- \ mechanics
@@ -610,15 +643,20 @@ makeMove loc board = Board  (sort (square:[sq | sq <- squares board, location sq
 
 -- play a supplied sequence of moves, alternating players
 playMoves :: [Location] -> Board
-playMoves ps =  snd (moveThrough (ps, newBoard))
+playMoves ps =  snd $ moveThrough (ps, newBoard)
 
+
+playAllGamesFrom :: Int -> [Board]
+playAllGamesFrom idx =
+ playGame idx : playAllGamesFrom (idx+1)
 
 -- play pre-defined game # n, return the board when game ends
 -- 362,880 possible game sequences (although there's only 26,830 distinct games)
 playGame :: Int -> Board
-playGame n =  snd (moveThrough (game, newBoard))
-  where game = permu usableLocations !! mod n 362880
+playGame n =  snd $ moveThrough (game, newBoard)
+  where game =  allPlaySequences !! mod n 362880
 
+allPlaySequences = permu usableLocations
 
 -- given a sequence of moves & a board,
 -- play until someone wins or no more moves
@@ -626,7 +664,7 @@ moveThrough :: ([Location], Board) -> ([Location], Board)
 moveThrough (unplayedSquares, board)
   | length unplayedSquares == 0 = (unplayedSquares, board)
   | aWinner board = (unplayedSquares, board)
-  | otherwise = moveThrough (tail unplayedSquares, (makeSuppliedMove (head unplayedSquares) board))
+  | otherwise = moveThrough (tail unplayedSquares, (makeSuppliedMove board (head unplayedSquares)))
 
 -- \ programmed play
 
@@ -644,3 +682,15 @@ fullRange = [minBound..maxBound]
 
 players :: [Player]
 players = fullRange
+
+permu :: [a] -> [[a]]
+permu [] = [[]]
+permu [x] = [[x]]
+permu (x:xs) = concat (Data.List.map (interl x) (permu xs))
+
+interl :: a -> [a] -> [[a]]
+interl a [] = [[a]]
+interl a (x: xs) =
+  (a:x:xs) : Data.List.map (x:) (interl a xs)
+
+

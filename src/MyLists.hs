@@ -11,17 +11,6 @@ initSegs :: [a] -> [[a]]
 initSegs [] = [[]]
 initSegs (x:xs) = [] : map (x:) (initSegs xs)
 
-interl :: a -> [a] -> [[a]]
-interl a [] = [[a]]
-interl a (x: xs) =
-  (a:x:xs) : map (x:) (interl a xs)
-
-permu :: [a] -> [[a]]
-permu [] = [[]]
-permu [x] = [[x]]
-permu (x:xs) = concat (map (interl x) (permu xs))
-
-
 partit :: [a] -> [[[a]]]
 partit [] = [[[]]]
 partit [x] = [[[x]]]
