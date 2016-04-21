@@ -95,6 +95,11 @@ data Board = Board  {
 newBoard :: Board
 newBoard = Board (Data.List.map (\i -> Square i N 0) usableLocations)
 
+instance Ord Board
+  where compare b1@(Board sqs1) b2@(Board sqs2)  = compareBoards b1 b2
+compareBoards :: Board -> Board -> Ordering
+compareBoards b1 b2 = compare (movesCount b1) (movesCount b2)
+
 instance Show Board
   where show (Board sqs)  = showBoard (Board sqs)
 showBoard :: Board -> String
@@ -129,6 +134,8 @@ showGame (Game {boards = bds}) = (gameString "Game sequence: \n" bds) ++ "Moves:
           | length bds < 2 = "none"
           | otherwise = show $ movesList (head bds) (last bds)
 
+aGameFrom :: [Board] -> Game
+aGameFrom bds = Game (sort bds)
 
 asGame :: Board -> Game
 asGame b = Game [newBoard, b]
@@ -150,14 +157,25 @@ gameString s (b:bds)
 checkStrategy :: Strategy -> Board -> [(Player, [Square])]
 checkStrategy s b = [(N, [])]
 
+{-
+--playAllPossibleRounds :: Strategy -> [[Board]] -> [[Board]]
+--playAllPossibleRounds s bdss
+-}
 
-playPossibleRounds :: [Board] -> [[Board]]
-playPossibleRounds bl =  Data.List.map (autoNextMove smarterMove) $ playPossibles bl
+-- for the head of a given board sequence, prepend all of the next possible rounds
+-- where a round is
+--  1) a specified move - representing a "human"
+--  2) the computer's response (using specified strategy)
+-- a given play is short-cicuited when a winner/draw is reached
+playPossibleRounds :: Strategy -> [Board] -> [[Board]]
+playPossibleRounds s bseq = (Data.List.map (autoNextMove s) $ Data.List.filter (\x -> not $ finished $ head x) bseqn)  ++ Data.List.filter (\x -> finished $ head x)  bseqn
+  where bseqn = playPossibles bseq
 
-
--- for the head of a list of boards, prepend all of the next possible moves
+-- for the head of a given board sequence, prepend all of the n possible moves, yielding n board sequences
 playPossibles :: [Board] -> [[Board]]
-playPossibles (bb:bs) =  Data.List.map (\ba -> ba:(bb:bs)) nextMoves
+playPossibles (bb:bs)
+  | finished bb = [bb:bs]
+  | otherwise = Data.List.map (\ba -> ba:(bb:bs)) nextMoves
   where unplayedLocations = Data.List.map location $ Data.List.filter isUnplayed $ squares bb
         nextMoves = Data.List.map (makeSuppliedMove bb) unplayedLocations
 
@@ -560,6 +578,8 @@ theWinner board = fst $ whoWonMoves board
 
 aWinner :: Board -> Bool
 aWinner board = theWinner board /= N
+
+finished board = (not $ hasUnplayed $ squares board)  || (aWinner board)
 
 -- who won & how many moves it took
 --  ('/',9) == a draw
