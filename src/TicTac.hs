@@ -138,7 +138,9 @@ type Scorer = (Player -> Intersection -> Int)
 data Intersection = Intersection  {
                       nexus :: Location,
                       rows :: [[Square]] }
-                    deriving (Eq, Show)
+                    deriving (Eq)
+instance Show Intersection
+  where show (Intersection l r) = "(" ++ show l ++ "," ++ show r ++ ")\n"
 
 -- / game play
 
@@ -242,13 +244,13 @@ smarterMove board
 -- using more involved ranking
 betterUnplayedSquare :: Board -> Player -> Maybe Location
 betterUnplayedSquare b p
- | length possiblePositions == 0 = Nothing
- | otherwise = Just (head possiblePositions)
- where possiblePositions = rankUnplayedPositions b p
+ | length possibleLocations == 0 = Nothing
+ | otherwise = Just (head possibleLocations)
+ where possibleLocations = rankUnplayedLocations b p
 
 -- returns unplayed positions ranked by most tics for player in its intersections
-rankUnplayedPositions :: Board -> Player -> [Location]
-rankUnplayedPositions b p =
+rankUnplayedLocations :: Board -> Player -> [Location]
+rankUnplayedLocations b p =
  Data.List.map nexus (sortBy (rankIntersectionFor p) (byIntersectionsUnplayed b))
 
 -- if one intersection has a better score, it's better
@@ -288,32 +290,44 @@ scoreIntersectionFor p i
  -- we're on our way to a draw
  | otherwise = 0
   where itsNexus = nexus i
-        scoredMe = Data.List.map (\sql -> scoreSqListFor p sql) (rows i)
+        scoredMe = Data.List.map (scoreSqListFor p) (rows i)
         scoresMe = Data.List.map fst scoredMe
-        scoredOp = Data.List.map (\sql -> scoreSqListFor op sql) (rows i)
+        scoredOp = Data.List.map (scoreSqListFor op) (rows i)
         scoresOp = Data.List.map fst scoredOp
         unblocked = or $ Data.List.map (> Blocked) scoresMe
         itsOpposite = opposite itsNexus  -- "opposite location"
         op = otherPlayer p
 
+-- will force opponent to play a square of no real use to them
+--isForceMove :: Square -> [Squares] -> Player -> Bool
+
+
 
 occupiesAdjacentCorners :: Intersection -> Player -> Bool
-occupiesAdjacentCorners i py = and (Data.List.map (\ac-> ((tic (squareAt ac i)))  == py) (adjacentCorners (nexus i)))
+occupiesAdjacentCorners i py = and (Data.List.map (\ac-> (tic (squareAt ac i))  == py) (adjacentCorners (nexus i)))
 
 -- index a square out of an intersection's "rows"
 -- caller knows it will be there, so doesn't protect against empty list
 squareAt :: Location -> Intersection -> Square
-squareAt  l i = head $ Data.List.filter (\i -> location i == l) sqs
+squareAt  l i = head $ Data.List.filter (\sq -> location sq == l) sqs
   where sqs = concat (rows i)
 
-nextToIn :: Square -> [Square] -> [Square]
-nextToIn _ [] = []
-nextToIn sq sqs = Data.List.filter (nextToSq sq) sqs
+-- "next to" == adjacent && (in a winning sequence) - e.g. diagonals are only "next to" corners or centre
 
--- are squares next to (in a winning sequence) one another?
+allNextTos :: [Location] -> [Square] -> [(Location, [Square])]
+allNextTos _ [] = []
+allNextTos ls sqs =  [(l, (nextTos sqs l)) | l <- ls]
+
+-- retireve a list of squares "next to" a location
+nextTos :: [Square] -> Location -> [Square]
+nextTos [] _ = []
+nextTos sqs l = Data.List.filter (\sq -> nextTo l (location sq)) sqs
+
+-- are squares "next to"  one another?
 nextToSq :: Square -> Square -> Bool
 nextToSq sq1 sq2 = nextTo (location sq1) (location sq2)
 
+-- are locations "next to"  one another?
 nextTo :: Location -> Location -> Bool
 nextTo l1 l2 = elem l2 (adjacentLocations l1)
 
@@ -378,7 +392,7 @@ pickUnplayedSquare :: [Square] -> Maybe Location
 pickUnplayedSquare squares
   | length sqs == 0 = Nothing
   | otherwise = Just (location $ head $ rankSquares sqs)
-  where sqs = Data.List.filter (\sq -> isUnplayed sq) squares
+  where sqs = Data.List.filter isUnplayed squares
 
 
 -- order "rows" by how 'good' they are for Player
@@ -430,8 +444,8 @@ isUnplayedFor p squares = length (Data.List.filter (\sq -> tic sq == p) squares)
 hasUnplayed :: [Square] -> Bool
 hasUnplayed squares = length (Data.List.filter (\sq -> tic sq == N) squares) > 0
 
-isUnplayedPosition :: Board -> Location -> Bool
-isUnplayedPosition b p = isUnplayed (squareFor b p)
+isUnplayedLocation :: Board -> Location -> Bool
+isUnplayedLocation b p = isUnplayed (squareFor b p)
 
 isUnplayed :: Square -> Bool
 isUnplayed square = tic square == N
@@ -454,18 +468,23 @@ playableRows board = Data.List.filter hasUnplayed (winningRows board)
 
 -- given a board, return its winning combos
 winningRows :: Board -> [[Square]]
-winningRows board = Data.List.map (\w -> squaresFor board w) winners
+winningRows board = Data.List.map (squaresFor board) winners
 
 -- given a location & board, return postion's winning combos from board
 winnersFor :: Location -> Board -> [[Square]]
-winnersFor thePosition board = (Data.List.filter (\w -> elem thePosition (Data.List.map location w))) (winningRows board)
+winnersFor theLocation board = (Data.List.filter (\w -> elem theLocation (Data.List.map location w))) (winningRows board)
 
 byIntersectionsUnplayed :: Board -> [Intersection]
-byIntersectionsUnplayed b =  Data.List.filter (\i -> isUnplayedPosition b (nexus i)) (byIntersections b)
+byIntersectionsUnplayed b =  Data.List.filter (\i -> isUnplayedLocation b (nexus i)) (byIntersections b)
 
 -- represent a board as a list of intersections for each location
 byIntersections :: Board -> [Intersection]
 byIntersections  board = Data.List.map (\l -> Intersection l (winnersFor l board)) usableLocations
+
+byNextTos :: Board -> [(Location, [Square])]
+byNextTos board = allNextTos (Data.List.map location sqs) sqs
+  where sqs = squares board
+
 
 winner :: Board -> Player -> Bool
 winner board player =  or $ Data.List.map (\w -> isInfixOf w ticked) winners
