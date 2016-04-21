@@ -62,8 +62,6 @@ itsRank l
   | otherwise = Edge
 
 
-
-
 data Score =  Unplayable | Blocked | Playable | MaybeOther | MaybeMe | ForkableOther | ForkableMe | Loser | Winner
   deriving (Eq, Ord, Show, Bounded, Enum)
 
@@ -123,13 +121,13 @@ showGame :: Game -> String
 showGame (Game {boards = bds}) = (gameString "Game sequence: \n" bds) ++ "Moves: " ++ movesMade
   where movesMade
           | length bds < 2 = "none"
-          | otherwise = show $ moves (head bds) (last bds)
+          | otherwise = show $ movesList (head bds) (last bds)
 
 
 gameString :: String -> [Board] -> String
 gameString s [] = s ++ "No boards!"
 gameString s (b:bds)
-  | length bds == 0 = s ++ show b ++ "\n" ++ show (movesMade b) ++ " moves made\n"
+  | length bds == 0 = s ++ show b ++ "\n" ++ show (movesCount b) ++ " moves made\n"
   | otherwise = gameString (s ++ show b ++ "\n") bds
 
 -- \ Game
@@ -164,18 +162,6 @@ playARoundUsing strategy board location
   where nextBoard = firstMove board location
         firstMove b l = makeSuppliedMove l b
 
-
-
-moves :: Board -> Board -> [Square]
-moves start finish =  sortByMove (diffBoards start finish)
-
-sortByMove :: [Square] -> [Square]
-sortByMove squares = sortBy byMove squares
-
-byMove :: Square -> Square -> Ordering
-byMove firstSq secondSq = compare firstMove secondMove
-  where firstMove = move firstSq
-        secondMove = move secondSq
 
 {-
 ghci> autoPlayAllUsing smartMove
@@ -231,6 +217,7 @@ autoPlayFromUsingTrack strategy start = autoPlayUsingTrack strategy ([makeMove s
 -- auto-play a single game, starting with "head" of supplied boards, using supplied strategy
 -- prepend board to list after each move
 autoPlayUsingTrack :: Strategy -> [Board] -> [Board]
+autoPlayUsingTrack strategy [] =  autoPlayUsingTrack strategy [newBoard]
 autoPlayUsingTrack strategy boards
   | aWinner nextBoard = nextBoard : boards
   | not $ hasUnplayed (squares nextBoard) = nextBoard : boards
@@ -239,7 +226,7 @@ autoPlayUsingTrack strategy boards
 
 -- \ game play
 
--- / game strategies
+-- / game strategy
 
 -- given a board, try to make best next move
 -- streamlined strategy ... this will autoplay every starting location to a draw
@@ -280,8 +267,6 @@ rankIntersectionFor p i1 i2
         i1Nexus = nexus i1
         i2Nexus = nexus i2
 
-
--- this is the meat of the "smarter" strategy
 scoreIntersectionFor :: Player -> Intersection -> Int
 scoreIntersectionFor p i
  -- winner or loser, easy choice
@@ -312,20 +297,53 @@ scoreIntersectionFor p i
         op = otherPlayer p
 
 
-
 occupiesAdjacentCorners :: Intersection -> Player -> Bool
 occupiesAdjacentCorners i py = and (Data.List.map (\ac-> ((tic (squareAt ac i)))  == py) (adjacentCorners (nexus i)))
 
 -- index a square out of an intersection's "rows"
 -- caller knows it will be there, so doesn't protect against empty list
 squareAt :: Location -> Intersection -> Square
-squareAt  p i = head $ Data.List.filter (\i -> location i == p) sqs
+squareAt  l i = head $ Data.List.filter (\i -> location i == l) sqs
   where sqs = concat (rows i)
 
-adjacentCorners :: Location -> [Location]
-adjacentCorners p = snd $ head $ Data.List.filter (\adj -> fst adj == p) adjs
-  where adjs = [ ((T, L),[(T, R),(B, L)]), ((T, C),[(T, L),(T, R)]), ((T, R),[(T, L),(B, R)]), ((M, L),[(T, L),(B, L)]), ((M, C), [(T, L),(T, R),(B, L),(B, R)]), ((M, R), [(T, R),(B, R)]), ((B, L), [(T, L),(B, R)]), ((B, C), [(B, L),(B, R)]), ((B, R), [(T, R),(B, L)])]
+nextToIn :: Square -> [Square] -> [Square]
+nextToIn _ [] = []
+nextToIn sq sqs = Data.List.filter (nextToSq sq) sqs
 
+-- are squares next to (in a winning sequence) one another?
+nextToSq :: Square -> Square -> Bool
+nextToSq sq1 sq2 = nextTo (location sq1) (location sq2)
+
+nextTo :: Location -> Location -> Bool
+nextTo l1 l2 = elem l2 (adjacentLocations l1)
+
+-- perhaps these nextTo / adjacentCorners could be computed, but pattern match is easy
+
+-- for a given location, what are its relevant (i.e. part of a winning sequence) contiguous locations?
+adjacentLocations :: Location -> [Location]
+adjacentLocations l
+  | l == (T,L) = [(T,C),(M,L),(M,C)]
+  | l == (T,C) = [(T,L),(T,R),(M,C)]
+  | l == (T,R) = [(T,C),(M,R),(M,C)]
+  | l == (M,L) = [(T,L),(B,L),(M,C)]
+  | l == (M,C) = [(T,L),(T,R),(M,L),(M,R),(B,L),(B,R)]
+  | l == (M,R) = [(T,R),(B,R),(M,C)]
+  | l == (B,L) = [(M,L),(B,C),(M,C)]
+  | l == (B,C) = [(B,L),(B,R),(M,C)]
+  | l == (B,R) = [(M,R),(B,C),(M,C)]
+
+-- for a given location,what are its adjacent corners?
+adjacentCorners :: Location -> [Location]
+adjacentCorners l
+  | l == (T,L) = [(T,R),(B,L)]
+  | l == (T,C) = [(T,L),(T,R)]
+  | l == (T,R) = [(T,L),(B,R)]
+  | l == (M,L) = [(T,L),(B,L)]
+  | l == (M,C) = [(T,L),(T,R),(B,L),(B,R)]
+  | l == (M,R) = [(T,R),(B,R)]
+  | l == (B,L) = [(T,L),(B,R)]
+  | l == (B,C) = [(B,L),(B,R)]
+  | l == (B,R) = [(T,R),(B,L)]
 
 --   for "rows" of squares ... logic makes no sense if this is a random collection of squares
 scoreSqListFor :: Player -> [Square] -> (Score, [Square])
@@ -344,8 +362,7 @@ scoreSqListFor player sqs
         opponent = otherPlayer player
         opponents = ticCount opponent sqs
 
-
--- \ game strategies
+-- / game strategy
 
 -- / simple game strategy
 
@@ -419,6 +436,14 @@ isUnplayedPosition b p = isUnplayed (squareFor b p)
 isUnplayed :: Square -> Bool
 isUnplayed square = tic square == N
 
+sortByMove :: [Square] -> [Square]
+sortByMove squares = sortBy byMove squares
+
+byMove :: Square -> Square -> Ordering
+byMove firstSq secondSq = compare firstMove secondMove
+  where firstMove = move firstSq
+        secondMove = move secondSq
+
 -- \ square state functions
 
 
@@ -461,10 +486,13 @@ whoWonMoves b
  | winner b X = (X, m)
  | winner b O = (O, m)
  | otherwise = (N, m)
- where m = movesMade b
+ where m = movesCount b
 
-movesMade :: Board -> Int
-movesMade b = 9 - length (unplayedSquares (squares b))
+movesCount :: Board -> Int
+movesCount b = 9 - length (unplayedSquares (squares b))
+
+movesList :: Board -> Board -> [Square]
+movesList start finish =  sortByMove (diffBoards start finish)
 
 -- give all moves made by winning player, not just winning sequence
 howWon :: Board -> (Player, [Location])
