@@ -18,6 +18,12 @@ type Location = (Row, Column)
 usableLocations :: [Location]
 usableLocations = [(r,c)| r <- fullRange, c <- fullRange]
 
+maybeLocation :: Int -> Maybe Location
+maybeLocation i
+  | i < 1 || i > length ls = Nothing
+  | otherwise = Just (ls !! (i - 1))
+  where ls = usableLocations
+
 rankLocation :: Location -> Location -> Ordering
 rankLocation p1 p2 = compare (itsRank p1) (itsRank p2)
 
@@ -140,29 +146,43 @@ data Intersection = Intersection  {
                       rows :: [[Square]] }
                     deriving (Eq)
 instance Show Intersection
-  where show (Intersection l r) = "(" ++ show l ++ "," ++ show r ++ ")\n"
+  where show (Intersection n rs) = "(" ++ show n ++ "," ++ show rs ++ ")\n"
 
 -- / game play
 
-play :: Board -> Maybe Location -> Board
-play board location = playUsing smarterMove board location
+play :: Board -> Int -> Board
+play b i
+ | aWinner b = b
+ | isNothing l  = smarterMove b
+ | otherwise = playl b (fromJust l)
+ where l = maybeLocation i
 
-playUsing :: Strategy -> Board -> Maybe Location -> Board
-playUsing  strategy board location
-  | aWinner board = board
-  | location == Nothing = strategy board
-  | otherwise = makeSuppliedMove (fromJust location) board
 
-playARound :: Board -> Location -> Board
-playARound board location = playARoundUsing smarterMove board location
+playl :: Board -> Location -> Board
+playl  b l
+  | aWinner b = b
+  | otherwise = makeSuppliedMove l b
 
-playARoundUsing  :: Strategy -> Board -> Location -> Board
-playARoundUsing strategy board location
-  | aWinner board = board
-  | aWinner nextBoard = nextBoard
-  | otherwise = strategy nextBoard
-  where nextBoard = firstMove board location
-        firstMove b l = makeSuppliedMove l b
+playUsing :: Strategy -> Board -> Board
+playUsing  s b
+  | aWinner b = b
+  | otherwise = s b
+
+
+playARound :: Board -> Int -> Board
+playARound b i = playARoundUsing smarterMove b i
+
+playARoundUsing :: Strategy -> Board -> Int -> Board
+playARoundUsing s b i
+ | aWinner b = b
+ | aWinner nextBoard = nextBoard
+ | otherwise = s nextBoard
+ where ml = maybeLocation i
+       nextBoard = firstMove b ml
+       firstMove b ml
+         | isNothing ml = s b
+         | otherwise = makeSuppliedMove (fromJust ml) b
+
 
 
 {-
@@ -273,12 +293,16 @@ scoreIntersectionFor :: Player -> Intersection -> Int
 scoreIntersectionFor p i
  -- winner or loser, easy choice
  | elem Winner scoresMe || elem Loser scoresMe = 32
+ -- force for me
+ | length myNextTos > 1 = 30
  -- magic square for me
- | (length $ Data.List.filter (== ForkableMe) scoresMe) > 1 = 30
+ | (length $ Data.List.filter (== ForkableMe) scoresMe) > 1 = 28
+ -- force for opponent
+ | length opNextTos > 1 = 26
  -- magic square for opponent
- | (length $ Data.List.filter (== ForkableOther) scoresMe) > 1 = 28
+ | (length $ Data.List.filter (== ForkableOther) scoresMe) > 1 = 24
  -- it's open corner & opponent occupies opposite
- | unblocked && aCorner itsNexus && tic (squareAt itsOpposite i) == op = 8
+ | unblocked && aCorner itsNexus && tic (squareAt itsOpposite i) == op = 20
  -- it's an open centre
  | unblocked && theCentre itsNexus  = 10
  -- it's an open corner
@@ -297,6 +321,9 @@ scoreIntersectionFor p i
         unblocked = or $ Data.List.map (> Blocked) scoresMe
         itsOpposite = opposite itsNexus  -- "opposite location"
         op = otherPlayer p
+        itsNextTos = nextTosi i
+        myNextTos = Data.List.filter (\sq -> tic sq == p) itsNextTos
+        opNextTos = Data.List.filter (\sq -> tic sq == op) itsNextTos
 
 -- will force opponent to play a square of no real use to them
 --isForceMove :: Square -> [Squares] -> Player -> Bool
@@ -318,7 +345,11 @@ allNextTos :: [Location] -> [Square] -> [(Location, [Square])]
 allNextTos _ [] = []
 allNextTos ls sqs =  [(l, (nextTos sqs l)) | l <- ls]
 
--- retireve a list of squares "next to" a location
+-- retrieve a list of squares "next to" an intersection
+nextTosi :: Intersection -> [Square]
+nextTosi i = nextTos (concat $ rows i) (nexus i)
+
+-- retireve a list of squares "next to" a location from supplied list of squares
 nextTos :: [Square] -> Location -> [Square]
 nextTos [] _ = []
 nextTos sqs l = Data.List.filter (\sq -> nextTo l (location sq)) sqs
