@@ -178,6 +178,13 @@ itsRank l
 newBoard :: Board
 newBoard = Board (Data.List.map (\i -> Square i N 0) usableLocations)
 
+--given a row major list of player tics, generate a "phony" (i.e. no move #'s) board for testing
+--  1) cycle thru supplied player list to ensure there's enough to generate a board
+--  2) invalid list will generate an invalid board
+--  3) empty list employs the players function to generate one
+boardFor :: [Player] -> Board
+boardFor [] = Board [Square (snd pl) (fst pl)  0 | pl <- zip (players ++ (reverse players) ++ players) usableLocations ]
+boardFor plys = Board [Square (snd pl) (fst pl)  0 | pl <- zip (cycle plys) usableLocations ]
 
 -- \ Board functions
 
@@ -369,21 +376,37 @@ type BoardFilter = Board -> [Location]
 type IntersectionsFilter = [Intersection] -> Player -> [Location]
 
 
-instantWinners :: BoardFilter
-instantWinners board = playableWhereTicsFor board (==2) (whosMove board)
-instantLosers  :: BoardFilter
-instantLosers board = playableWhereTicsFor board (==2) (otherPlayer (whosMove board))
 
--- Unplayed locations on a board where there are unblocked rows with a tic count meeting predicate
-playableWhereTicsFor :: Board -> (Int -> Bool) -> Player -> [Location]
-playableWhereTicsFor b pred p = [l | (l, c) <- ticCountsForPlayable b p, (length $ Data.List.filter pred c) >0]
-  where ticCountsForPlayable :: Board -> Player -> [(Location, [Int])]
-        ticCountsForPlayable b p =
-          zip (Data.List.map (nexus) is)  (Data.List.map (ticCountsUnblocked p) is)
-          where is = byIntersectionsUnplayed b
-                ticCountsUnblocked :: Player -> Intersection -> [Int]
-                ticCountsUnblocked p i = Data.List.map (ticCount p) (Data.List.filter (\r -> ticCount (otherPlayer p) r == 0)(rows i))
+playersInTheRow :: [Square] -> [(Player, Int)]
+playersInTheRow sqs = [(p, (countPlayerInRow sqs p)) | p <- players ]
 
+countPlayerInRow :: [Square] -> Player -> Int
+countPlayerInRow sqs ply = length $ Data.List.filter (\sq -> tic sq == ply) sqs
+
+{-
+Win: If the player has two in a row, they can place a third to get three in a row.
+
+
+Block: If the opponent has two in a row, the player must play the third themselves to block the opponent.
+
+Fork: Create an opportunity where the player has two threats to win (two non-blocked lines of 2).
+
+Blocking an opponent's fork:
+
+Option 1: The player should create two in a row to force the opponent into defending, as long as it doesn't result in them creating a fork.
+For example, if "X" has a corner, "O" has the center, and "X" has the opposite corner as well,
+"O" must not play a corner in order to win. (Playing a corner in this scenario creates a fork for "X" to win.)
+
+Option 2: If there is a configuration where the opponent can fork, the player should block that fork.
+
+Center: A player marks the center. (If it is the first move of the game, playing on a corner gives "O" more opportunities to make a mistake and may therefore be the better choice; however, it makes no difference between perfect players.)
+
+Opposite corner: If the opponent is in the corner, the player plays the opposite corner.
+
+Empty corner: The player plays in a corner square.
+
+Empty side: The player plays in a middle square on any of the 4 sides.
+-}
 
 -- \ refactored game strategy
 
