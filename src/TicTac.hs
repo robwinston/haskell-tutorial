@@ -23,14 +23,7 @@ data Rank = Edge | Corner | Nexus
 type Location = (Row, Column)
 type Move = Int
 type Strategy = (Board -> Board)
-
-
-
-data Outcome = Outcome {
-                 player :: Player,
-                 moves :: Int
-               }
-              deriving (Eq, Ord)
+type BoardFact = Board -> Bool
 
 data Square = Square {
                  location :: Location,
@@ -38,9 +31,7 @@ data Square = Square {
                  move :: Move }
               deriving (Eq, Ord)
 instance Show Square
-  where show square@(Square l p m) = showSquare (square)
-showSquare :: Square -> String
-showSquare (Square {location = l, tic = p, move = m}) = "|" ++ show l ++ ":" ++ show p ++ ":" ++ show m ++ "|"
+  where show square@(Square l p m) = "|" ++ show l ++ ":" ++ show p ++ ":" ++ show m ++ "|"
 
 
 data Intersection = Intersection  {
@@ -55,26 +46,22 @@ data Board = Board  {
                squares :: [Square] }
              deriving (Eq)
 instance Ord Board
-  where compare b1@(Board sqs1) b2@(Board sqs2)  = compareBoards b1 b2
-compareBoards :: Board -> Board -> Ordering
-compareBoards b1 b2 = compare (movesCount b1) (movesCount b2)
+  where compare b1@(Board sqs1) b2@(Board sqs2)  = compare (movesCount b1) (movesCount b2)
 
 instance Show Board
-  where show (Board sqs)  = showBoard (Board sqs)
-showBoard :: Board -> String
-showBoard b@(Board {squares = sqs} ) =  (fst (squaresToGrid ("", sqs))) ++ (boardState b)
-  where boardState :: Board -> String
-        boardState b
-          | aWinner b = (show $ whoWon b)  ++ " wins!\n"
-          | whosMove b == N = "It's a draw\n"
-          | otherwise = (show $ whosMove b) ++ " to move\n"
-        squaresToGrid :: (String , [Square]) -> (String, [Square])
-        squaresToGrid (gridString, squares)
-          | length squares == 0 = (gridString, squares)
-          | otherwise =  squaresToGrid ((gridString ++ (removeDupes (concat (Data.List.map justTic row))) ++ "\n"), whatsLeft)
-          where (row, whatsLeft) = splitAt 3 squares
-                justTic :: Square -> String
-                justTic square  = "|" ++ show (tic square) ++ "|"
+  where show b@(Board sqs) = (fst (squaresToGrid ("", sqs))) ++ (boardState b)
+            where boardState :: Board -> String
+                  boardState b
+                    | aWinner b = (show $ whoWon b)  ++ " wins!\n"
+                    | whosMove b == N = "It's a draw\n"
+                    | otherwise = (show $ whosMove b) ++ " to move\n"
+                  squaresToGrid :: (String , [Square]) -> (String, [Square])
+                  squaresToGrid (gridString, squares)
+                    | length squares == 0 = (gridString, squares)
+                    | otherwise =  squaresToGrid ((gridString ++ (removeDupes (concat (Data.List.map justTic row))) ++ "\n"), whatsLeft)
+                    where (row, whatsLeft) = splitAt 3 squares
+                          justTic :: Square -> String
+                          justTic square  = "|" ++ show (tic square) ++ "|"
 
 
 
@@ -82,35 +69,46 @@ data Game = Game {
          boards :: [Board]
        }
        deriving (Eq)
+
 instance Show Game
   where show (Game bds) = showGame (Game bds)
+
 showGame :: Game -> String
 showGame (Game {boards = bds}) = (gameString "Game sequence: \n" bds) ++ "Moves: " ++ movesMade ++ "\n"
   where movesMade
           | length bds < 2 = "none"
           | otherwise = show $ movesList (head bds) (last bds)
+        gameString :: String -> [Board] -> String
+        gameString s [] = s ++ "No boards!"
+        gameString s (b:bds)
+          | length bds == 0 = s ++ show b ++ "\n" ++ show (movesCount b) ++ " moves made\n"
+          | otherwise = gameString (s ++ show b ++ "\n") bds
 instance Ord Game
-  where compare g1@(Game bds1) g2@(Game sqs2)  = compareGames g1 g2
-compareGames :: Game -> Game -> Ordering
-compareGames g1 g2
- -- aWinner is greater than a draw
- | p1 /= N && p2 == N = GT
- | p1 == N && p2 /= N = LT
- -- if both winners, least moves is better
- | otherwise = compare (Down m1) (Down m2)
-  where (Outcome p1 m1) = gameOutcome g1
-        (Outcome p2 m2)= gameOutcome g2
+  where compare g1@(Game bds1) g2@(Game sqs2) = compare (gameOutcome g1) (gameOutcome g2)
+
+
+data Outcome = Outcome {
+                 player :: Player,
+                 moves :: Int
+               }
+              deriving (Eq)
+instance Show Outcome
+  where show outc@(Outcome py mvs) = "(" ++ show py ++ " in " ++ show mvs ++ " moves)"
+instance Ord Outcome
+  where compare o1@(Outcome p1 m1) o2@(Outcome p2 m2)
+           -- aWinner is greater than a draw
+          | p1 /= N && p2 == N = GT
+          | p1 == N && p2 /= N = LT
+           -- if both winners, least moves is better
+          | otherwise = compare (Down m1) (Down m2)
 
 
 data Score =  Unplayable | Blocked | Playable | MaybeOther | MaybeMe | ForkableOther | ForkableMe | Loser | Winner
   deriving (Eq, Ord, Show, Bounded, Enum)
 
-type BoardFact = Board -> Bool
-
 -- \ Data types
 
 -- / Player functions
-
 otherPlayer :: Player -> Player
 otherPlayer p
   | p == O = X
@@ -154,7 +152,10 @@ centre = [ (M, C) ]
 others :: [Location]
 others = [ (T, C), (B, C), (M, L), (M, R) ]
 
+theCentre :: Location -> Bool
 theCentre l = isRank Nexus l
+
+aCorner :: Location -> Bool
 aCorner l = isRank Corner l
 
 winners :: [[Location]]
@@ -172,17 +173,15 @@ itsRank l
   | elem l centre = Nexus
   | otherwise = Edge
 
-
 -- \ Location functions
 
--- / Board
-
+-- / Board functions
 newBoard :: Board
 newBoard = Board (Data.List.map (\i -> Square i N 0) usableLocations)
 
--- \ Board
+-- \ Board functions
 
--- / Game
+-- / Game functions
 
 aGameFrom :: [Board] -> Game
 aGameFrom bds = Game (sort bds)  -- Board's ORD compares how many moves have been made
@@ -193,30 +192,26 @@ asGame b = Game [newBoard, b]
 gamePlay :: Game -> (Player, [Square])
 gamePlay Game{boards=bds} = (whoWon $ last bds, movesList (head bds) (last bds))
 
+-- for a game - return winner (N == Draw) & # of moves
+gameOutcome :: Game -> Outcome
+gameOutcome Game{boards=bds} = boardOutcome $ last bds
 
+-- \ Game functions
 
+-- / Outcome functions
+winnersFor :: [Outcome] -> Player -> Int
+winnersFor outcomes player = length $ [p | (Outcome p _) <- outcomes, p == player]
 
-strategyChecker :: Strategy -> Player -> [Outcome]
-strategyChecker s p =  Data.List.map (\p -> (Outcome p (winnersFor outcomes p))) [X,O,N]
+-- \ Outcome functions
+
+-- / Strategy functions
+strategyChecker :: Strategy -> Player -> [(Player, Int)]
+strategyChecker s p =  Data.List.map (\p -> (p,(winnersFor outcomes p))) [X,O,N]
   where allGames = allPossibleGames s $ boardToUse p
         outcomes = Data.List.map gameOutcome allGames
         boardToUse X = newBoard
         boardToUse O = s newBoard
         boardToUse N = newBoard
-
-winnersFor :: [Outcome] -> Player -> Int
-winnersFor outcomes player = length $ [p | (Outcome p _) <- outcomes, p == player]
-
--- for a game - return winner (N == Draw) & # of moves
-gameOutcome :: Game -> Outcome
-gameOutcome Game{boards=bds} = boardOutcome $ last bds
-
-gameString :: String -> [Board] -> String
-gameString s [] = s ++ "No boards!"
-gameString s (b:bds)
-  | length bds == 0 = s ++ show b ++ "\n" ++ show (movesCount b) ++ " moves made\n"
-  | otherwise = gameString (s ++ show b ++ "\n") bds
-
 
 -- Given a strategy and a board, return all possible outcomes human v computer using supplied strategy
 allPossibleGames :: Strategy -> Board -> [Game]
@@ -254,8 +249,6 @@ playPossibles (bb:bs)
 autoNextMove :: Strategy -> [Board] -> [Board]
 autoNextMove  _ [] = []
 autoNextMove s (b:bs) = s b : (b:bs)
-
--- \ Game
 
 
 -- / game play
