@@ -24,9 +24,6 @@ type Location = (Row, Column)
 type Move = Int
 type Strategy = (Board -> Board)
 
-type BoardFilter = Board -> [Location]
-type IntersectionsFilter = [Intersection] -> Player -> [Location]
-
 data Square = Square {
                  location :: Location,
                  tic :: Player,
@@ -182,20 +179,6 @@ newBoard :: Board
 newBoard = Board (Data.List.map (\i -> Square i N 0) usableLocations)
 
 
-
-
--- Unplayed locations on a board where there are unblocked rows with a tic count meeting predicate
-playableWhereTicsFor :: Board -> (Int -> Bool) -> Player -> [Location]
-playableWhereTicsFor b pred p = [l | (l, c) <- ticCountsForPlayable b p, (length $ Data.List.filter pred c) >0]
-  where ticCountsForPlayable :: Board -> Player -> [(Location, [Int])]
-        ticCountsForPlayable b p =
-          zip (Data.List.map (nexus) is)  (Data.List.map (ticCountsUnblocked p) is)
-          where is = byIntersectionsUnplayed b
-                ticCountsUnblocked :: Player -> Intersection -> [Int]
-                ticCountsUnblocked p i = Data.List.map (ticCount p) (Data.List.filter (\r -> ticCount (otherPlayer p) r == 0)(rows i))
-
-
-
 -- \ Board functions
 
 -- / Game functions
@@ -306,17 +289,16 @@ playARoundUsing s b i
 
 
 {-
-If it plays against itself --
-ghci> autoPlayAllUsing smartMove
-[N,N,O,N,X,N,N,N,N]
-ghci> autoPlayAllUsing smarterMove
-[N,N,N,N,N,N,N,N,N]
 
-See how it does when played against - X|O denotes "human" player
+ghci> autoPlayAllUsing smartMove
+[O,O,N,N,N,N,N,N,O]
+ghci> autoPlayAllUsing smarterMove
+[X,N,X,N,X,N,N,N,O]
+
 ghci> strategyChecker smarterMove X
-[(X,11),(O,251),(N,401)]                <- "human" wins 11 times
+[(X,11),(O,282),(N,332)]
 ghci> strategyChecker smarterMove O
-[(X,113),(O,6),(N,71)]                  <- "human" wins 6 times
+[(X,114),(O,11),(N,51)]
 
 ghci> strategyChecker smartMove X
 [(X,19),(O,255),(N,407)]
@@ -383,15 +365,25 @@ autoPlayUsingTrack strategy boards
 
 -- / refactored game strategy
 
-{-
-winnable :: BoardFilter
-winnable board = Data.List.map location (Data.List.filter (\i -> (length $ (Data.List.map (\sqs -> ticCount p sqs) (rows i))) > 2) is)
-  where p = whosMove board
-        is = byIntersectionsUnplayed board
--}
+type BoardFilter = Board -> [Location]
+type IntersectionsFilter = [Intersection] -> Player -> [Location]
 
 
--- ticCount :: Player -> [Square] -> Int
+instantWinners :: BoardFilter
+instantWinners board = playableWhereTicsFor board (==2) (whosMove board)
+instantLosers  :: BoardFilter
+instantLosers board = playableWhereTicsFor board (==2) (otherPlayer (whosMove board))
+
+-- Unplayed locations on a board where there are unblocked rows with a tic count meeting predicate
+playableWhereTicsFor :: Board -> (Int -> Bool) -> Player -> [Location]
+playableWhereTicsFor b pred p = [l | (l, c) <- ticCountsForPlayable b p, (length $ Data.List.filter pred c) >0]
+  where ticCountsForPlayable :: Board -> Player -> [(Location, [Int])]
+        ticCountsForPlayable b p =
+          zip (Data.List.map (nexus) is)  (Data.List.map (ticCountsUnblocked p) is)
+          where is = byIntersectionsUnplayed b
+                ticCountsUnblocked :: Player -> Intersection -> [Int]
+                ticCountsUnblocked p i = Data.List.map (ticCount p) (Data.List.filter (\r -> ticCount (otherPlayer p) r == 0)(rows i))
+
 
 -- \ refactored game strategy
 
@@ -439,7 +431,8 @@ rankIntersectionFor p i1 i2
 scoreIntersectionFor :: Player -> Intersection -> Int
 scoreIntersectionFor p i
  -- winner or loser, easy choice
- | elem Winner scoresMe || elem Loser scoresMe = 32
+ | elem Winner scoresMe = 34
+ | elem Loser scoresMe = 32
  -- force for me
  | length myNextTos > 1 = 30
  -- magic square for me
