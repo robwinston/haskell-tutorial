@@ -106,11 +106,9 @@ showBoard :: Board -> String
 showBoard b@(Board {squares = sqs} ) =  (fst (squaresToGrid ("", sqs))) ++ (boardState b)
   where boardState :: Board -> String
         boardState b
-          | aWinner b = (show whoWon)  ++ " wins!\n"
-          | nextPlayer == N = "It's a draw\n"
-          | otherwise = (show nextPlayer) ++ " to move\n"
-          where whoWon = theWinner b
-                nextPlayer = whosMove b
+          | aWinner b = (show $ whoWon b)  ++ " wins!\n"
+          | whosMove b == N = "It's a draw\n"
+          | otherwise = (show $ whosMove b) ++ " to move\n"
         squaresToGrid :: (String , [Square]) -> (String, [Square])
         squaresToGrid (gridString, squares)
           | length squares == 0 = (gridString, squares)
@@ -135,16 +133,29 @@ showGame (Game {boards = bds}) = (gameString "Game sequence: \n" bds) ++ "Moves:
           | otherwise = show $ movesList (head bds) (last bds)
 
 aGameFrom :: [Board] -> Game
-aGameFrom bds = Game (sort bds)
+aGameFrom bds = Game (sort bds)  -- Board's ORD compares how many moves have been made
 
 asGame :: Board -> Game
 asGame b = Game [newBoard, b]
 
+gamePlay :: Game -> (Player, [Square])
+gamePlay Game{boards=bds} = (whoWon $ last bds, movesList (head bds) (last bds))
+
+
+strategyChecker :: Strategy -> Player -> [(Player, Int)]
+strategyChecker s p =  Data.List.map (\p -> (p, gameWinnersFor outcomes p)) [X,O,N]
+  where allGames = allPossibleGames s $ boardToUse p
+        outcomes = Data.List.map gameOutcome allGames
+        boardToUse X = newBoard
+        boardToUse O = s newBoard
+        boardToUse N = newBoard
+
+gameWinnersFor :: [(Player, Int)] -> Player -> Int
+gameWinnersFor outcomes player = length $ [p | (p,_) <- outcomes, p == player]
+
+-- for a game - return winner (N == Draw) & # of moves
 gameOutcome :: Game -> (Player, Int)
-gameOutcome Game{boards=bds}
-  | length bds == 0 = (N,0)
-  | otherwise = (theWinner $ ending, movesCount ending)
-  where ending = last bds
+gameOutcome Game{boards=bds} = whoWonMoves $ last bds
 
 gameString :: String -> [Board] -> String
 gameString s [] = s ++ "No boards!"
@@ -153,14 +164,17 @@ gameString s (b:bds)
   | otherwise = gameString (s ++ show b ++ "\n") bds
 
 
--- Given a strategy, a board, play against it ... return possible outcomes and sequence of moves
-checkStrategy :: Strategy -> Board -> [(Player, [Square])]
-checkStrategy s b = [(N, [])]
+-- Given a strategy and a board, return all possible outcomes human v computer using supplied strategy
+allPossibleGames :: Strategy -> Board -> [Game]
+allPossibleGames s b = Data.List.map (aGameFrom) (playAllPossibleRounds s [[b]])
 
-{-
---playAllPossibleRounds :: Strategy -> [[Board]] -> [[Board]]
---playAllPossibleRounds s bdss
--}
+
+playAllPossibleRounds :: Strategy -> [[Board]] -> [[Board]]
+playAllPossibleRounds s  [] = playAllPossibleRounds s [[newBoard]]
+playAllPossibleRounds s bdss
+  | (length $ Data.List.filter (\bds -> not $ finished $ head bds) bdss) == 0 = bdss
+  | otherwise = playAllPossibleRounds s (concat $ Data.List.map (\bds -> playPossibleRounds s bds) bdss)
+
 
 -- for the head of a given board sequence, prepend all of the next possible rounds
 -- where a round is
@@ -237,11 +251,24 @@ playARoundUsing s b i
 
 
 {-
+If it playse against itself --
 ghci> autoPlayAllUsing smartMove
 [N,N,O,N,X,N,N,N,N]
 ghci> autoPlayAllUsing smarterMove
 [N,N,N,N,N,N,N,N,N]
+
+see how it does - X|O denotes "human" player
+ghci> strategyChecker smarterMove X
+[(X,11),(O,251),(N,401)]
+ghci> strategyChecker smarterMove O
+[(X,113),(O,6),(N,71)]
+
+ghci> strategyChecker smartMove X
+[(X,19),(O,255),(N,407)]
+ghci> strategyChecker smartMove O
+[(X,54),(O,3),(N,35)]
 ghci>
+
 -}
 
 -- for all of the auto-play strategies accepting a starting board -
@@ -249,7 +276,7 @@ ghci>
 
 -- auto-play from all possible starting positions, return list of winner for each game
 autoPlayAllUsing :: Strategy -> [Player]
-autoPlayAllUsing strategy = Data.List.map theWinner $ Data.List.map (autoPlayFromUsing strategy) usableLocations
+autoPlayAllUsing strategy = Data.List.map whoWon $ Data.List.map (autoPlayFromUsing strategy) usableLocations
 
 -- auto-play a single game, starting with supplied location, using default strategy
 autoPlayFrom :: Location -> Board
@@ -572,24 +599,23 @@ winner :: Board -> Player -> Bool
 winner board player =  or $ Data.List.map (\w -> isInfixOf w ticked) winners
   where ticked = Data.List.map location (Data.List.filter (\sq -> (tic sq) == player) (squares board))
 
-
-theWinner :: Board -> Player
-theWinner board = fst $ whoWonMoves board
-
-aWinner :: Board -> Bool
-aWinner board = theWinner board /= N
-
-finished board = (not $ hasUnplayed $ squares board)  || (aWinner board)
+whoWon :: Board -> Player
+whoWon b
+ | winner b X = X
+ | winner b O = O
+ | otherwise = N
 
 -- who won & how many moves it took
---  ('/',9) == a draw
---  ('/', [0..8]) == an unfinished game
+--  ('N',9) == a draw
+--  ('N', [0..8]) == an unfinished game
 whoWonMoves :: Board -> (Player, Int)
-whoWonMoves b
- | winner b X = (X, m)
- | winner b O = (O, m)
- | otherwise = (N, m)
- where m = movesCount b
+whoWonMoves b  = (whoWon b, movesCount b)
+
+aWinner :: Board -> Bool
+aWinner board = whoWon board /= N
+
+finished :: Board -> Bool
+finished b = (movesCount b == 9) || (aWinner b)
 
 movesCount :: Board -> Int
 movesCount b = 9 - length (unplayedSquares (squares b))
@@ -600,7 +626,7 @@ movesList start finish =  sortByMove (diffBoards start finish)
 -- give all moves made by winning player, not just winning sequence
 howWon :: Board -> (Player, [Location])
 howWon board = (winner, Data.List.map location sqForWinner)
-  where winner = theWinner board
+  where winner = whoWon board
         sqForWinner = [sq | sq <- (squares board), tic sq == winner]
 
 -- if board is empty, assumes 'x' plays first ...
