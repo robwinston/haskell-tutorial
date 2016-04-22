@@ -23,7 +23,9 @@ data Rank = Edge | Corner | Nexus
 type Location = (Row, Column)
 type Move = Int
 type Strategy = (Board -> Board)
-type BoardFact = Board -> Bool
+
+type BoardFilter = Board -> [Location]
+type IntersectionsFilter = [Intersection] -> Player -> [Location]
 
 data Square = Square {
                  location :: Location,
@@ -41,7 +43,6 @@ data Intersection = Intersection  {
 instance Show Intersection
   where show (Intersection n rs) = "(" ++ show n ++ "," ++ show rs ++ ")\n"
 
-
 data Board = Board  {
                squares :: [Square] }
              deriving (Eq)
@@ -52,9 +53,10 @@ instance Show Board
   where show b@(Board sqs) = (fst (squaresToGrid ("", sqs))) ++ (boardState b)
             where boardState :: Board -> String
                   boardState b
-                    | aWinner b = (show $ whoWon b)  ++ " wins!\n"
-                    | whosMove b == N = "It's a draw\n"
-                    | otherwise = (show $ whosMove b) ++ " to move\n"
+                    | aWinner b = mvs ++ (show $ whoWon b)  ++ " wins!\n"
+                    | whosMove b == N = mvs ++ "It's a draw\n"
+                    | otherwise = mvs ++ (show $ whosMove b) ++ " to move\n"
+                    where mvs = (show $ movesCount b) ++ ": "
                   squaresToGrid :: (String , [Square]) -> (String, [Square])
                   squaresToGrid (gridString, squares)
                     | length squares == 0 = (gridString, squares)
@@ -178,6 +180,21 @@ itsRank l
 -- / Board functions
 newBoard :: Board
 newBoard = Board (Data.List.map (\i -> Square i N 0) usableLocations)
+
+
+
+
+-- Unplayed locations on a board where there are unblocked rows with a tic count meeting predicate
+playableWhereTicsFor :: Board -> (Int -> Bool) -> Player -> [Location]
+playableWhereTicsFor b pred p = [l | (l, c) <- ticCountsForPlayable b p, (length $ Data.List.filter pred c) >0]
+  where ticCountsForPlayable :: Board -> Player -> [(Location, [Int])]
+        ticCountsForPlayable b p =
+          zip (Data.List.map (nexus) is)  (Data.List.map (ticCountsUnblocked p) is)
+          where is = byIntersectionsUnplayed b
+                ticCountsUnblocked :: Player -> Intersection -> [Int]
+                ticCountsUnblocked p i = Data.List.map (ticCount p) (Data.List.filter (\r -> ticCount (otherPlayer p) r == 0)(rows i))
+
+
 
 -- \ Board functions
 
@@ -363,6 +380,20 @@ autoPlayUsingTrack strategy boards
   where nextBoard = strategy $ head boards
 
 -- \ game play
+
+-- / refactored game strategy
+
+{-
+winnable :: BoardFilter
+winnable board = Data.List.map location (Data.List.filter (\i -> (length $ (Data.List.map (\sqs -> ticCount p sqs) (rows i))) > 2) is)
+  where p = whosMove board
+        is = byIntersectionsUnplayed board
+-}
+
+
+-- ticCount :: Player -> [Square] -> Int
+
+-- \ refactored game strategy
 
 -- / game strategy
 
@@ -763,4 +794,16 @@ interl a [] = [[a]]
 interl a (x: xs) =
   (a:x:xs) : Data.List.map (x:) (interl a xs)
 
+-- TODO remove when no longer needed
+-- load some test data ... for ghci devel
+bsq = reverse $ autoPlayTrack [newBoard]
+g = aGameFrom bsq
+bx = bsq !! 5
+bo = bsq !! 8
+ix = byIntersections bx
+io = byIntersections bo
+px = whosMove bx
+po = whosMove bo
+oo = otherPlayer po
+ox = otherPlayer px
 
