@@ -8,11 +8,11 @@ There are four ways to play it.  All *play* functions share common behaviour:
 
 * Return the updated board - you must capture this to perform successive plays
 * Use `newBoard` to get an unplayed board
-* Board *Location* range is `[TLC,TM,TRC,LM,CTR,RM,BLC,BM,BRC]`; there is also a `NOL` location as a no-op.
-* If *Location* supplied to function is `NOL`, computer will make next move
+* Board *Location* range is expressed in row major order
+* If *Location* supplied to function is out of range, computer will make next move
 * If *Location* supplied is already marked, board remains unchanged
 * *strategy* is a `Board -> Board` function (see code for what a `Board` is
-* There are two pre-defined strategies: `smartMove` and `smarterMove` The `smartMove` strategy is easily defeated (so not *very* smart after all); the `smarterMove` strategy can possibly be beat, but less easily. 
+* There are two pre-defined strategies: `smartMove` and `smarterMove` The `smartMove` strategy is easily defeated (so not *very* smart after all); the `smarterMove` strategy is also defeatable, but somewhat less easily. 
 
 * Of course *strategy* is used only when the computer is playing
 
@@ -32,6 +32,3 @@ There are also some *auto-play* functions:
 2. `autoPlayFrom Location` - computer starts a new board, plays the requested Location, then carries on like `autoPlay`
 3. `autoPlayUsing ` & `autoPlayFromUsing` are the variations which take a supplied *strategy* 
 
-
-
-[Sample Play](SAMPLEGAME.md)
