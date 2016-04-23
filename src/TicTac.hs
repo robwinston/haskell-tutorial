@@ -98,7 +98,7 @@ data Outcome = Outcome {
                }
               deriving (Eq)
 instance Show Outcome
-  where show outc@(Outcome py mvs) = "(" ++ show py ++ " in " ++ show mvs ++ " moves)"
+  where show outc@(Outcome ply mvs) = "(" ++ show ply ++ " in " ++ show mvs ++ " moves)"
 instance Ord Outcome
   where compare o1@(Outcome p1 m1) o2@(Outcome p2 m2)
            -- aWinner is greater than a draw
@@ -433,15 +433,9 @@ countPlayerInEachRow sqs ply = length $ DL.filter (\sq -> tic sq == ply) sqs
 
 {-
 
-for forkables & blockables, added check that other player has no tics
-
-without blockables:
 ghci> DL.map (strategyChecker cleverMove) [X,O]
-[[(X,6),(O,328),(N,251)],[(X,77),(O,2),(N,20)]]
-
-with blockables:
-ghci> DL.map (strategyChecker cleverMove) [X,O]
-[[(X,4),(O,302),(N,151)],[(X,77),(O,2),(N,20)]]   <- down to 4 combos!
+[[(X,1),(O,302),(N,154)],[(X,77),(O,2),(N,20)]]
+ghci>
 
 -}
 
@@ -503,20 +497,24 @@ canFork ply brd  =
 isUnoccupied :: [Location] -> Board -> [Location]
 isUnoccupied locs brd  = [loc | Intersection{nexus=loc, rows=r} <- unplayedIntersections brd, elem loc locs]
 
-
--- makes things worse in present form - but saving for review
 blocking :: Board -> [Location]
 blocking brd
-  | length incommon > 0 = incommon
+--   this is the problem,
+--         if there's two of these we need to return forcables, which are not these
+  | length inboth == 1 = inboth
+  | length inboth > 1  && length forceableOnly > 0 = forceableOnly
   | otherwise = forkableByOpponent
 -- find locations with open rows already occupied
 -- find locations which are forkable by opponent
 -- find which ones are both
 --   ... if any, return only them
 --   ... if not, return those forkable by opponent
+--   this is the problem,
+--         if there's two of these we need to return forcables, which are not these
   where forceable = canForce ply brd
         forkableByOpponent = canFork opy brd
-        incommon = intersect forceable forkableByOpponent
+        inboth = intersect forceable forkableByOpponent
+        forceableOnly = diffs forceable forkableByOpponent
         ply = whosMove brd
         opy = otherPlayer ply
 
@@ -525,6 +523,28 @@ canForce ply brd =
   DL.map fst  (DL.filter (\(loc,t) -> t > 0) (DL.map (\(loc,ts) -> (loc, length $ DL.filter (\t -> countForPlayer ply t == 1 && countForPlayer opy t == 0) ts)) (unplayedTallys brd)))
   where opy = otherPlayer ply
 
+diffs :: (Ord a ) => [a] -> [a] -> [a]
+diffs l1 l2 = toList $ difference  (fromList l1) (fromList l2)
+
+{-
+
+|O|N|N|
+|N|X|N|
+|N|N|X|
+3: O to move
+
+|O|O|N|
+|N|X|N|
+|N|N|X|
+4: X to move
+
+|O|O|X|
+|N|X|N|
+|N|N|X|
+5: O to move
+
+
+-}
 
 {-
 
@@ -960,7 +980,7 @@ interl a (x: xs) =
 
 -- TODO remove when no longer needed
 -- load some test data ... for ghci devel
-apg = allPossibleGames smarterMove newBoard
+apg = allPossibleGames cleverMove newBoard
 apo = DL.map gameOutcome apg
 apgo = zip apg apo
 
@@ -971,3 +991,6 @@ apgoN = [g | (g,o@Outcome{ply=ply,moves=m}) <- apgo, ply == N]
 gO0 = head apgoO
 gX0 = head apgoX
 gN0 = head apgoN
+
+gamesFor :: [Game] -> Player -> [Game]
+gamesFor games py = [g | g@Game{boards=bds} <- games, (ply $ gameOutcome g) == py]
