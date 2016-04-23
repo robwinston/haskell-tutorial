@@ -431,12 +431,22 @@ countPlayersInEachRow sqs = [(ply, (countPlayerInEachRow sqs ply)) | ply <- play
 countPlayerInEachRow :: [Square] -> Player -> Int
 countPlayerInEachRow sqs ply = length $ DL.filter (\sq -> tic sq == ply) sqs
 
-
 {-
-ghci> DL.map (strategyChecker smarterMove) [X,O]
-[[(X,11),(O,282),(N,332)],[(X,114),(O,11),(N,51)]]
+
+forgot to update stats in prior commit so ...
+
+without blockables:
+ghci> DL.map (strategyChecker cleverMove) [X,O]
+[[(X,6),(O,330),(N,249)],[(X,77),(O,0),(N,22)]]
 ghci>
+
+with blockables:
+ghci> DL.map (strategyChecker cleverMove) [X,O]
+[[(X,12),(O,320),(N,205)],[(X,77),(O,0),(N,22)]]   <- aaah, X does better!
+ghci>
+
 -}
+
 
 -- TODO collapse this once function signatures have been normalised
 cleverMove :: Board -> Board
@@ -449,6 +459,8 @@ cleverMove brd
   | length losables > 0 = makeMove (head losables) brd
   -- Fork: Create an opportunity where the player has two threats to win (two non-blocked lines of 2).
   | length forkables > 0 = makeMove (head forkables) brd
+  -- Block: force player or block their forkable
+  | length blockables > 0 = makeMove (head blockables) brd
   -- Center: play centre
   | length ctrs > 0 = makeMove (head ctrs) brd
   -- Opposite: if oppenent occupies opposite corner, play it
@@ -463,11 +475,22 @@ cleverMove brd
         winables = canWin (whosMove brd) brd
         losables = canWin (otherPlayer $ whosMove brd) brd
         forkables = canFork (whosMove brd) brd
+        blockables = blocking brd
         ctrs = isUnoccupied  centre brd
         opcs = oppositeOccupied brd
         ocs = isUnoccupied  corners brd
         oms = isUnoccupied  middles brd
         lup = unplayedLocations brd
+
+
+oppositeOccupied :: Board -> [Location]
+oppositeOccupied brd = [loc | loc <- unplayedLocations brd, (elem loc corners)  && ((tic $ squareFor brd $ opposite loc) == oply)]
+  where oply = otherPlayer $ whosMove brd
+
+openingMove :: Board -> [Location]
+openingMove brd
+  | (length $ allLocations brd) - (length $ unplayedLocations brd)  == 0 = corners
+  | otherwise = []
 
 
 canWin :: Player -> Board -> [Location]
@@ -478,17 +501,31 @@ canFork :: Player -> Board -> [Location]
 canFork ply brd  =
   DL.map fst  (DL.filter (\(loc,t) -> t > 1) (DL.map (\(loc,ts) -> (loc, length $ DL.filter (\t -> countForPlayer ply t == 1) ts)) (unplayedTallys brd)))
 
-oppositeOccupied :: Board -> [Location]
-oppositeOccupied brd = [loc | loc <- unplayedLocations brd, (elem loc corners)  && ((tic $ squareFor brd $ opposite loc) == oply)]
-  where oply = otherPlayer $ whosMove brd
-
 isUnoccupied :: [Location] -> Board -> [Location]
 isUnoccupied locs brd  = [loc | Intersection{nexus=loc, rows=r} <- unplayedIntersections brd, elem loc locs]
 
-openingMove :: Board -> [Location]
-openingMove brd
-  | (length $ allLocations brd) - (length $ unplayedLocations brd)  == 0 = corners
-  | otherwise = []
+
+-- makes things worse in present form - but saving for review
+blocking :: Board -> [Location]
+blocking brd
+  | length incommon > 0 = incommon
+  | otherwise = forkableByOpponent
+-- find locations with open rows already occupied
+-- find locations which are forkable by opponent
+-- find which ones are both
+--   ... if any, return only them
+--   ... if not, return those forkable by opponent
+  where forceable = canForce ply brd
+        forkableByOpponent = canFork opy brd
+        incommon = intersect forceable forkableByOpponent
+        ply = whosMove brd
+        opy = otherPlayer ply
+
+canForce :: Player -> Board -> [Location]
+canForce ply brd =
+  DL.map fst  (DL.filter (\(loc,t) -> t > 0) (DL.map (\(loc,ts) -> (loc, length $ DL.filter (\t -> countForPlayer ply t == 1) ts)) (unplayedTallys brd)))
+
+
 {-
 
 Blocking an opponent's fork:
@@ -567,7 +604,7 @@ scoreIntersectionFor ply i
  -- it's an open centre
  | unblocked && theCentre itsNexus  = 10
  -- it's open corner & opponent occupies opposite
- | unblocked && aCorner itsNexus && tic (squareAt itsOpposite i) == op = 20
+ | unblocked && aCorner itsNexus && tic (squareAt itsOpposite i) == opy = 20
  -- it's an open corner
  | unblocked && aCorner itsNexus  = 6
  -- it possess some other advantage ...
@@ -579,14 +616,14 @@ scoreIntersectionFor ply i
   where itsNexus = nexus i
         scoredMe = DL.map (scoreSqListFor ply) (rows i)
         scoresMe = DL.map fst scoredMe
-        scoredOp = DL.map (scoreSqListFor op) (rows i)
+        scoredOp = DL.map (scoreSqListFor opy) (rows i)
         scoresOp = DL.map fst scoredOp
         unblocked = or $ DL.map (> Blocked) scoresMe
         itsOpposite = opposite itsNexus  -- "opposite location"
-        op = otherPlayer ply
+        opy = otherPlayer ply
         itsNextTos = nextTosi i
         myNextTos = DL.filter (\sq -> tic sq == ply) itsNextTos
-        opNextTos = DL.filter (\sq -> tic sq == op) itsNextTos
+        opNextTos = DL.filter (\sq -> tic sq == opy) itsNextTos
 
 occupiesAdjacentCorners :: Intersection -> Player -> Bool
 occupiesAdjacentCorners i py = and (DL.map (\ac-> (tic (squareAt ac i))  == py) (adjacentCorners (nexus i)))
