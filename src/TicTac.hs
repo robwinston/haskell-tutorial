@@ -431,19 +431,7 @@ countPlayersInEachRow sqs = [(ply, (countPlayerInEachRow sqs ply)) | ply <- play
 countPlayerInEachRow :: [Square] -> Player -> Int
 countPlayerInEachRow sqs ply = length $ DL.filter (\sq -> tic sq == ply) sqs
 
-{-
-
-ghci> DL.map (strategyChecker cleverMove) [X,O]
-[[(X,1),(O,302),(N,154)],[(X,77),(O,2),(N,20)]]
-ghci>
-
--}
-
-
 -- TODO collapse this once function signatures have been normalised
-
-
-
 cleverMove :: Board -> Board
 cleverMove  brd
   -- If opening move, play a corner
@@ -500,12 +488,20 @@ canFork ply brd  =
 isUnoccupied :: [Location] -> Board -> [Location]
 isUnoccupied locs brd  = [loc | Intersection{nexus=loc, rows=r} <- unplayedIntersections brd, elem loc locs]
 
+
+{-
+Fromal Snapshot 1:
+ghci> DL.map (strategyChecker cleverMove) [X,O]
+[[(X,4),(O,314),(N,139)],[(X,54),(O,1),(N,37)]]
+ghci>
+-}
 blocking :: Board -> [Location]
 blocking brd
 --   this is the problem,
---         if there's two of these we need to return forcables, which are not these
-  | length inboth == 1 = inboth
-  | length inboth > 1  && length forceableOnly > 0 = forceableOnly
+--         if there's two of these we need to return forcables, which are not these <- wrong!
+--         need to force opponent to play a different one ...
+  | length inboth > 0 = inboth
+  | length forceableOnly > 0 = forceableOnly
   | otherwise = forkableByOpponent
 -- find locations with open rows already occupied
 -- find locations which are forkable by opponent
@@ -531,13 +527,6 @@ diffs l1 l2 = toList $ difference  (fromList l1) (fromList l2)
 
 {-
 
-ghci> blocking brd
-[(T,C),(M,L)]   <- mised the good corner
-ghci> brd
-|O|N|N|
-|N|X|N|
-|N|N|X|
-3: O to move
 
 -}
 
