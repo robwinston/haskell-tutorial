@@ -300,8 +300,8 @@ playPossibles :: [Board] -> [[Board]]
 playPossibles (bb:bs)
   | finished bb = [bb:bs]
   | otherwise = DL.map (\ba -> ba:(bb:bs)) nextMoves
-  where unplayedLocations = DL.map location $ DL.filter isUnplayed $ squares bb
-        nextMoves = DL.map (makeSuppliedMove bb) unplayedLocations
+  where upl = DL.map location $ DL.filter isUnplayed $ squares bb
+        nextMoves = DL.map (makeSuppliedMove bb) upl
 
 -- for a list of boards, prepend next move using strategy
 autoNextMove :: Strategy -> [Board] -> [Board]
@@ -441,6 +441,8 @@ ghci>
 -- TODO collapse this once function signatures have been normalised
 cleverMove :: Board -> Board
 cleverMove brd
+  -- If opening move, play a corner
+  | length openingMoves > 0 = makeMove (head openingMoves) brd
   -- Win: If the player has two in a row, the player plays the third to win
   | length winables > 0 = makeMove (head winables) brd
   -- Block: If the opponent has two in a row, the player plays the third to block
@@ -457,32 +459,36 @@ cleverMove brd
   | length oms > 0 = makeMove (head oms) brd
   | length lup > 0 = makeMove (head lup) brd
   | otherwise = brd
-  where winables = canWin brd (whosMove brd)
-        losables = canWin brd (otherPlayer $ whosMove brd)
-        forkables = canFork brd (whosMove brd)
-        ctrs = isUnoccupied brd centre
+  where openingMoves = openingMove brd
+        winables = canWin (whosMove brd) brd
+        losables = canWin (otherPlayer $ whosMove brd) brd
+        forkables = canFork (whosMove brd) brd
+        ctrs = isUnoccupied  centre brd
         opcs = oppositeOccupied brd
-        ocs = isUnoccupied brd corners
-        oms = isUnoccupied brd middles
-        lup = byLocationsUnplayed brd
+        ocs = isUnoccupied  corners brd
+        oms = isUnoccupied  middles brd
+        lup = unplayedLocations brd
 
 
-canWin :: Board -> Player -> [Location]
-canWin brd ply =
-  DL.map fst  (DL.filter (\(loc,t) -> t > 0) (DL.map (\(loc,ts) -> (loc, length $ DL.filter (\t -> countForPlayer ply t == 2) ts)) (byTallys brd)))
+canWin :: Player -> Board -> [Location]
+canWin ply brd  =
+  DL.map fst  (DL.filter (\(loc,t) -> t > 0) (DL.map (\(loc,ts) -> (loc, length $ DL.filter (\t -> countForPlayer ply t == 2) ts)) (unplayedTallys brd)))
 
-canFork :: Board -> Player -> [Location]
-canFork brd ply =
-  DL.map fst  (DL.filter (\(loc,t) -> t > 1) (DL.map (\(loc,ts) -> (loc, length $ DL.filter (\t -> countForPlayer ply t == 1) ts)) (byTallys brd)))
+canFork :: Player -> Board -> [Location]
+canFork ply brd  =
+  DL.map fst  (DL.filter (\(loc,t) -> t > 1) (DL.map (\(loc,ts) -> (loc, length $ DL.filter (\t -> countForPlayer ply t == 1) ts)) (unplayedTallys brd)))
 
 oppositeOccupied :: Board -> [Location]
 oppositeOccupied brd = [loc | loc <- unplayedLocations brd, (elem loc corners)  && ((tic $ squareFor brd $ opposite loc) == oply)]
   where oply = otherPlayer $ whosMove brd
 
-isUnoccupied :: Board -> [Location] -> [Location]
-isUnoccupied brd locs = [loc | Intersection{nexus=loc, rows=r} <- byIntersectionsUnplayed brd, elem loc locs]
+isUnoccupied :: [Location] -> Board -> [Location]
+isUnoccupied locs brd  = [loc | Intersection{nexus=loc, rows=r} <- unplayedIntersections brd, elem loc locs]
 
-
+openingMove :: Board -> [Location]
+openingMove brd
+  | (length $ allLocations brd) - (length $ unplayedLocations brd)  == 0 = corners
+  | otherwise = []
 {-
 
 Blocking an opponent's fork:
@@ -527,7 +533,7 @@ betterUnplayedSquare brd ply
 -- returns unplayed positions ranked by most tics for player in its intersections
 rankUnplayedLocations :: Board -> Player -> [Location]
 rankUnplayedLocations brd ply =
- DL.map nexus (sortBy (rankIntersectionFor ply) (byIntersectionsUnplayed brd))
+ DL.map nexus (sortBy (rankIntersectionFor ply) (unplayedIntersections brd))
 
 -- if one intersection has a better score, it's better
 -- if they're the same, rank by their location
@@ -759,25 +765,26 @@ winningRows brd = DL.map (squaresFor brd) winners
 winningCombos :: Location -> Board -> [[Square]]
 winningCombos theLocation brd = (DL.filter (\w -> elem theLocation (DL.map location w))) (winningRows brd)
 
-byIntersectionsUnplayed :: Board -> [Intersection]
-byIntersectionsUnplayed brd =  DL.filter (\i -> isUnplayedLocation brd (nexus i)) (byIntersections brd)
+unplayedIntersections :: Board -> [Intersection]
+unplayedIntersections brd =  DL.filter (\i -> isUnplayedLocation brd (nexus i)) (byIntersections brd)
 
-byLocationsUnplayed :: Board -> [Location]
-byLocationsUnplayed brd = DL.map location $ DL.filter isUnplayed $ squares brd
+unplayedLocations :: Board -> [Location]
+unplayedLocations brd = DL.map location $ DL.filter isUnplayed $ squares brd
+
+allLocations :: Board -> [Location]
+allLocations brd = DL.map location $ squares brd
+
+-- represent a board as a list of lists of tallys for each unplayed location
+unplayedTallys :: Board -> [(Location, [[Tally]])]
+unplayedTallys  brd = DL.map asTally (unplayedIntersections brd)
 
 -- represent a board as a list of intersections for each location
 byIntersections :: Board -> [Intersection]
 byIntersections  brd = DL.map (\loc -> Intersection loc (winningCombos loc brd)) usableLocations
 
--- represent a board as a list of lists of tallys for each unplayed location
-byTallys :: Board -> [(Location, [[Tally]])]
-byTallys  brd = DL.map asTally (byIntersectionsUnplayed brd)
-
-
 byNextTos :: Board -> [(Location, [Square])]
 byNextTos brd = allNextTos (DL.map location sqs) sqs
   where sqs = squares brd
-
 
 winner :: Board -> Player -> Bool
 winner brd ply =  or $ DL.map (\w -> isInfixOf w ticked) winners
@@ -839,9 +846,6 @@ diffSquares sqs1 sqs2 = toList $ difference  (fromList sqs2) (fromList sqs1)
 
 unplayedSquares :: Board -> [Square]
 unplayedSquares brd = DL.filter (\sq -> tic sq == N) (squares brd)
-
-unplayedLocations :: Board -> [Location]
-unplayedLocations brd = DL.map location $ unplayedSquares brd
 
 playedSquares :: Board -> [Square]
 playedSquares brd = DL.filter (\sq -> tic sq /= N) (squares brd)
