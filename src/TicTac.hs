@@ -51,7 +51,7 @@ instance Ord Board
   where compare b1@(Board sqs1) b2@(Board sqs2)  = compare (movesCount b1) (movesCount b2)
 
 instance Show Board
-  where show brd@(Board sqs) = (fst (squaresToGrid ("", sqs))) ++ (boardState brd)
+  where show brd@(Board sqs) = "\n" ++ (fst (squaresToGrid ("", sqs))) ++ (boardState brd)
             where boardState :: Board -> String
                   boardState brd
                     | aWinner brd = mvs ++ (show $ whoWon brd)  ++ " wins!\n"
@@ -93,7 +93,7 @@ instance Ord Game
 
 
 data Outcome = Outcome {
-                 ply :: Player,
+                 player :: Player,
                  moves :: Int
                }
               deriving (Eq)
@@ -367,7 +367,7 @@ autoPlay brd = autoPlayUsing smarterMove brd
 
 -- auto-play a single game, starting with supplied location, using supplied strategy
 autoPlayFromUsing :: Strategy -> Location -> Board
-autoPlayFromUsing strategy start = autoPlayUsing strategy (makeMove start brd)
+autoPlayFromUsing strategy start = autoPlayUsing strategy (makeMove brd start)
   where brd = newBoard
         ply = whosMove brd
 
@@ -388,7 +388,7 @@ autoPlayTrack boards = autoPlayUsingTrack smarterMove boards
 -- auto-play a single game, starting with supplied location & strategy
 -- prepend board to list after each move
 autoPlayFromUsingTrack :: Strategy -> Location -> [Board]
-autoPlayFromUsingTrack strategy start = autoPlayUsingTrack strategy ([makeMove start brd])
+autoPlayFromUsingTrack strategy start = autoPlayUsingTrack strategy ([makeMove brd start])
   where brd = newBoard
         ply = whosMove brd
 
@@ -435,24 +435,24 @@ countPlayerInEachRow sqs ply = length $ DL.filter (\sq -> tic sq == ply) sqs
 cleverMove :: Board -> Board
 cleverMove  brd
   -- If opening move, play a corner
-  | length openingMoves > 0 = makeMove (head openingMoves) brd
+  | length openingMoves > 0 = makeMove brd (head openingMoves)
   -- Win: If the player has two in a row, the player plays the third to win
-  | length winables > 0 = makeMove (head winables) brd
+  | length winables > 0 = makeMove brd (head winables)
   -- Block: If the opponent has two in a row, the player plays the third to block
-  | length losables > 0 = makeMove (head losables) brd
+  | length losables > 0 = makeMove brd (head losables)
   -- Fork: Create an opportunity where the player has two threats to win (two non-blocked lines of 2).
-  | length forkables > 0 = makeMove (head forkables) brd
+  | length forkables > 0 = makeMove brd (head forkables)
   -- Block: force player or block their forkable
-  | length blockables > 0 = makeMove (head blockables) brd
+  | length blockables > 0 = makeMove brd (head blockables)
   -- Center: play centre
-  | length ctrs > 0 = makeMove (head ctrs) brd
+  | length ctrs > 0 = makeMove brd (head ctrs)
   -- Opposite: if oppenent occupies opposite corner, play it
-  | length opcs > 0 = makeMove (head opcs) brd
+  | length opcs > 0 = makeMove brd (head opcs)
   -- Open corner: if there's an open corner, play it
-  | length ocs > 0 = makeMove (head ocs) brd
+  | length ocs > 0 = makeMove brd (head ocs)
   -- Open middle: if there's an open middle, play it
-  | length oms > 0 = makeMove (head oms) brd
-  | length lup > 0 = makeMove (head lup) brd
+  | length oms > 0 = makeMove brd (head oms)
+  | length lup > 0 = makeMove brd (head lup)
   | otherwise = brd
   where openingMoves = openingMove brd
         winables = canWin (whosMove brd) brd
@@ -490,18 +490,29 @@ isUnoccupied locs brd  = [loc | Intersection{nexus=loc, rows=r} <- unplayedInter
 
 
 {-
-Fromal Snapshot 2:
+Fromal Snapshot 3:
+
+form before ..
 ghci> DL.map (strategyChecker cleverMove) [X,O]
 [[(X,1),(O,314),(N,142)],[(X,54),(O,2),(N,36)]]
-ghci>
+
+  | length bestof > 0 = bestof  ... third
+ghci> DL.map (strategyChecker cleverMove) [X,O]
+[[(X,1),(O,314),(N,142)],[(X,58),(O,2),(N,28)]]
+
+  | length bestof > 0 = bestof  ... first
+ghci> DL.map (strategyChecker cleverMove) [X,O]
+[[(X,1),(O,326),(N,130)],[(X,58),(O,2),(N,28)]]
 -}
 blocking :: Board -> [Location]
 blocking brd
 --   this is the problem,
---         if there's two of these we need to return forcables, which are not these <- wrong!
+--         if there's two of these we need to return forcables, which are not these
 --         need to force opponent to play a different one ...
+  | length bestof > 0 = bestof
   | length inboth == 1 = inboth
-  | length forceableOnly > 0 = forceableOnly
+  | length forceableOnly == 1 = forceableOnly
+  -- this is where we need to pick one ...
   | otherwise = forkableByOpponent
 -- find locations with open rows already occupied
 -- find locations which are forkable by opponent
@@ -514,6 +525,7 @@ blocking brd
         forkableByOpponent = canFork opy brd
         inboth = intersect forceable forkableByOpponent
         forceableOnly = diffs forceable forkableByOpponent
+        bestof = removeBadMoves forceable brd
         ply = whosMove brd
         opy = otherPlayer ply
 
@@ -525,29 +537,15 @@ canForce ply brd =
 diffs :: (Ord a ) => [a] -> [a] -> [a]
 diffs l1 l2 = toList $ difference  (fromList l1) (fromList l2)
 
-{-
 
+-- this still isn't doing the trick ...
+removeBadMoves :: [Location] -> Board -> [Location]
+removeBadMoves possibleMoves brd = [l | (l,(r1,r2)) <- lmwz, r1 /= r2]
+  where nr = zip possibleMoves (DL.map (\l -> (makeMove brd l)) possibleMoves)
+        lmwz = zip possibleMoves (zip (DL.map (\(l,b) -> canFork X b) nr) (DL.map (\(l,b) -> canWin O b) nr))
+        ply = whosMove brd
+        opy = otherPlayer ply
 
--}
-
-{-
-
-Blocking an opponent's fork:
-
-Option 1: The player should create two in a row to force the opponent into defending, as long as it doesn't result in them creating a fork.
-For example, if "X" has a corner, "O" has the center, and "X" has the opposite corner as well,
-"O" must not play a corner in order to win. (Playing a corner in this scenario creates a fork for "X" to win.)
-
-Option 2: If there is a configuration where the opponent can fork, the player should block that fork.
-
-Center: A player marks the center. (If it is the first move of the game, playing on a corner gives "O" more opportunities to make a mistake and may therefore be the better choice; however, it makes no difference between perfect players.)
-
-Opposite corner: If the opponent is in the corner, the player plays the opposite corner.
-
-Empty corner: The player plays in a corner square.
-
-Empty side: The player plays in a middle square on any of the 4 sides.
--}
 
 -- \ refactored game strategy
 
@@ -558,7 +556,7 @@ Empty side: The player plays in a middle square on any of the 4 sides.
 -- but can be defeated by a human with certain sequences
 smarterMove :: Board -> Board
 smarterMove brd
-    | isJust loc = makeMove (fromJust loc) brd
+    | isJust loc = makeMove brd (fromJust loc)
     | otherwise = brd
     where  ply = whosMove brd
            loc = betterUnplayedSquare brd ply
@@ -712,7 +710,7 @@ scoreSqListFor ply sqs
 
 smartMove :: Board -> Board
 smartMove brd
-  | isJust loc = makeMove (fromJust loc) brd
+  | isJust loc = makeMove brd (fromJust loc)
   | otherwise = brd
   where loc = pickUnplayedSquare $ head $ rankBoardRows brd (whosMove brd)
 
@@ -902,11 +900,11 @@ playedSquares brd = DL.filter (\sq -> tic sq /= N) (squares brd)
 makeSuppliedMove :: Board -> Location -> Board
 makeSuppliedMove brd ply
   | not $ (isUnplayed $ squareFor brd ply) = brd
-  | otherwise = makeMove ply brd
+  | otherwise = makeMove brd ply
 
-
-makeMove :: Location -> Board -> Board
-makeMove loc brd = Board  (sort $ square:[sq | sq <- squares brd, location sq /= loc])
+-- replace square with new one & sort to preserve row-major order
+makeMove :: Board -> Location -> Board
+makeMove brd loc = Board  (sort $ square:[sq | sq <- squares brd, location sq /= loc])
   where square = Square loc (whosMove brd) (whichMove brd)
 
 -- \ mechanics
@@ -968,13 +966,29 @@ apg = allPossibleGames cleverMove newBoard
 apo = DL.map gameOutcome apg
 apgo = zip apg apo
 
-apgoO = [g | (g,o@Outcome{ply=ply,moves=m}) <- apgo, ply == O]
-apgoX = [g | (g,o@Outcome{ply=ply,moves=m}) <- apgo, ply == X]
-apgoN = [g | (g,o@Outcome{ply=ply,moves=m}) <- apgo, ply == N]
+apgX = gamesFor apg X
+apgO = gamesFor apg O
+apgN = gamesFor apg N
+
+apgoO = [g | (g,o@Outcome{player=ply,moves=m}) <- apgo, ply == O]
+apgoX = [g | (g,o@Outcome{player=ply,moves=m}) <- apgo, ply == X]
+apgoN = [g | (g,o@Outcome{player=ply,moves=m}) <- apgo, ply == N]
 
 gO0 = head apgoO
 gX0 = head apgoX
 gN0 = head apgoN
 
+gX = head apgX
+brd = fromJust $ boardForMove gX 3
+ply = whosMove brd
+opy = otherPlayer ply
+forceable = canForce ply brd
+forkableByOpponent = canFork opy brd
+inboth = intersect forceable forkableByOpponent
+forceableOnly = diffs forceable forkableByOpponent
+blockables = blocking brd
+
+
+
 gamesFor :: [Game] -> Player -> [Game]
-gamesFor games py = [g | g@Game{boards=bds} <- games, (ply $ gameOutcome g) == py]
+gamesFor games py = [g | g@Game{boards=bds} <- games, (player $ gameOutcome g) == py]
