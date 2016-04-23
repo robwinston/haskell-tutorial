@@ -138,6 +138,16 @@ maybeLocation i
 rankLocation :: Location -> Location -> Ordering
 rankLocation p1 p2 = compare (itsRank p1) (itsRank p2)
 
+-- if it's not a corner, it doesn't have an opposite
+oppositeCorner :: Location -> Maybe Location
+oppositeCorner loc
+  | loc == (T, L) = Just (B, R)
+  | loc == (T, R) = Just (B, L)
+  | loc == (B, L) = Just (T, R)
+  | loc == (B, R) = Just (T, L)
+  | otherwise = Nothing
+
+
 opposite :: Location -> Location
 opposite loc
   | loc == (T, L) = (B, R)
@@ -154,8 +164,8 @@ corners :: [Location]
 corners = [ (T, L), (T, R), (B, L), (B, R) ]
 centre :: [Location]
 centre = [ (M, C) ]
-others :: [Location]
-others = [ (T, C), (B, C), (M, L), (M, R) ]
+middles :: [Location]
+middles = [ (T, C), (B, C), (M, L), (M, R) ]
 
 theCentre :: Location -> Bool
 theCentre loc = isRank Nexus loc
@@ -428,31 +438,52 @@ ghci> DL.map (strategyChecker smarterMove) [X,O]
 ghci>
 -}
 
+-- TODO collapse this once function signatures have been normalised
 cleverMove :: Board -> Board
 cleverMove brd
+  -- Win: If the player has two in a row, the player plays the third to win
   | length winables > 0 = makeMove (head winables) brd
+  -- Block: If the opponent has two in a row, the player plays the third to block
   | length losables > 0 = makeMove (head losables) brd
-  | length iup > 0 = makeMove (nexus $ head iup) brd
+  -- Fork: Create an opportunity where the player has two threats to win (two non-blocked lines of 2).
+  | length forkables > 0 = makeMove (head forkables) brd
+  -- Center: play centre
+  | length ctrs > 0 = makeMove (head ctrs) brd
+  -- Opposite: if oppenent occupies opposite corner, play it
+  | length opcs > 0 = makeMove (head opcs) brd
+  -- Open corner: if there's an open corner, play it
+  | length ocs > 0 = makeMove (head ocs) brd
+  -- Open middle: if there's an open middle, play it
+  | length oms > 0 = makeMove (head oms) brd
+  | length lup > 0 = makeMove (head lup) brd
   | otherwise = brd
-  where winables = winable brd
-        losables = loseable brd
-        iup = byIntersectionsUnplayed brd
+  where winables = canWin brd (whosMove brd)
+        losables = canWin brd (otherPlayer $ whosMove brd)
+        forkables = canFork brd (whosMove brd)
+        ctrs = isUnoccupied brd centre
+        opcs = oppositeOccupied brd
+        ocs = isUnoccupied brd corners
+        oms = isUnoccupied brd middles
+        lup = byLocationsUnplayed brd
 
-
-winable :: Board -> [Location]
-winable brd = canWin brd (whosMove brd)
-
-loseable :: Board -> [Location]
-loseable brd = canWin brd (otherPlayer $ whosMove brd)
 
 canWin :: Board -> Player -> [Location]
 canWin brd ply =
   DL.map fst  (DL.filter (\(loc,t) -> t > 0) (DL.map (\(loc,ts) -> (loc, length $ DL.filter (\t -> countForPlayer ply t == 2) ts)) (byTallys brd)))
 
-{-
-Block: If the opponent has two in a row, the player must play the third themselves to block the opponent.
+canFork :: Board -> Player -> [Location]
+canFork brd ply =
+  DL.map fst  (DL.filter (\(loc,t) -> t > 1) (DL.map (\(loc,ts) -> (loc, length $ DL.filter (\t -> countForPlayer ply t == 1) ts)) (byTallys brd)))
 
-Fork: Create an opportunity where the player has two threats to win (two non-blocked lines of 2).
+oppositeOccupied :: Board -> [Location]
+oppositeOccupied brd = [loc | loc <- unplayedLocations brd, (elem loc corners)  && ((tic $ squareFor brd $ opposite loc) == oply)]
+  where oply = otherPlayer $ whosMove brd
+
+isUnoccupied :: Board -> [Location] -> [Location]
+isUnoccupied brd locs = [loc | Intersection{nexus=loc, rows=r} <- byIntersectionsUnplayed brd, elem loc locs]
+
+
+{-
 
 Blocking an opponent's fork:
 
@@ -730,6 +761,9 @@ winningCombos theLocation brd = (DL.filter (\w -> elem theLocation (DL.map locat
 
 byIntersectionsUnplayed :: Board -> [Intersection]
 byIntersectionsUnplayed brd =  DL.filter (\i -> isUnplayedLocation brd (nexus i)) (byIntersections brd)
+
+byLocationsUnplayed :: Board -> [Location]
+byLocationsUnplayed brd = DL.map location $ DL.filter isUnplayed $ squares brd
 
 -- represent a board as a list of intersections for each location
 byIntersections :: Board -> [Intersection]
