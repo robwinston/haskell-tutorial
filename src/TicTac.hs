@@ -433,17 +433,15 @@ countPlayerInEachRow sqs ply = length $ DL.filter (\sq -> tic sq == ply) sqs
 
 {-
 
-forgot to update stats in prior commit so ...
+for forkables & blockables, added check that other player has no tics
 
 without blockables:
 ghci> DL.map (strategyChecker cleverMove) [X,O]
-[[(X,6),(O,330),(N,249)],[(X,77),(O,0),(N,22)]]
-ghci>
+[[(X,6),(O,328),(N,251)],[(X,77),(O,2),(N,20)]]
 
 with blockables:
 ghci> DL.map (strategyChecker cleverMove) [X,O]
-[[(X,12),(O,320),(N,205)],[(X,77),(O,0),(N,22)]]   <- aaah, X does better!
-ghci>
+[[(X,4),(O,302),(N,151)],[(X,77),(O,2),(N,20)]]   <- down to 4 combos!
 
 -}
 
@@ -499,7 +497,8 @@ canWin ply brd  =
 
 canFork :: Player -> Board -> [Location]
 canFork ply brd  =
-  DL.map fst  (DL.filter (\(loc,t) -> t > 1) (DL.map (\(loc,ts) -> (loc, length $ DL.filter (\t -> countForPlayer ply t == 1) ts)) (unplayedTallys brd)))
+  DL.map fst  (DL.filter (\(loc,t) -> t > 1) (DL.map (\(loc,ts) -> (loc, length $ DL.filter (\t -> countForPlayer ply t == 1 && countForPlayer opy t == 0) ts)) (unplayedTallys brd)))
+  where opy = otherPlayer ply
 
 isUnoccupied :: [Location] -> Board -> [Location]
 isUnoccupied locs brd  = [loc | Intersection{nexus=loc, rows=r} <- unplayedIntersections brd, elem loc locs]
@@ -523,7 +522,8 @@ blocking brd
 
 canForce :: Player -> Board -> [Location]
 canForce ply brd =
-  DL.map fst  (DL.filter (\(loc,t) -> t > 0) (DL.map (\(loc,ts) -> (loc, length $ DL.filter (\t -> countForPlayer ply t == 1) ts)) (unplayedTallys brd)))
+  DL.map fst  (DL.filter (\(loc,t) -> t > 0) (DL.map (\(loc,ts) -> (loc, length $ DL.filter (\t -> countForPlayer ply t == 1 && countForPlayer opy t == 0) ts)) (unplayedTallys brd)))
+  where opy = otherPlayer ply
 
 
 {-
