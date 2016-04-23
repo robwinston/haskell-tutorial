@@ -421,16 +421,11 @@ countPlayersInEachRow sqs = [(ply, (countPlayerInEachRow sqs ply)) | ply <- play
 countPlayerInEachRow :: [Square] -> Player -> Int
 countPlayerInEachRow sqs ply = length $ DL.filter (\sq -> tic sq == ply) sqs
 
-{-
-ghci> bx
-|X|X|N|
-|O|X|N|
-|N|N|O|
-5: O to move
 
-pbrx = playersInBoardRows bx
-DL.map (countForPlayer X) pbrx
-> [2,1,0,1,2,0,2,1]
+{-
+ghci> DL.map (strategyChecker smarterMove) [X,O]
+[[(X,11),(O,282),(N,332)],[(X,114),(O,11),(N,51)]]
+ghci>
 -}
 
 cleverMove :: Board -> Board
