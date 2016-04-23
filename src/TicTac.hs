@@ -490,9 +490,9 @@ isUnoccupied locs brd  = [loc | Intersection{nexus=loc, rows=r} <- unplayedInter
 
 
 {-
-Fromal Snapshot 1:
+Fromal Snapshot 2:
 ghci> DL.map (strategyChecker cleverMove) [X,O]
-[[(X,4),(O,314),(N,139)],[(X,54),(O,1),(N,37)]]
+[[(X,1),(O,314),(N,142)],[(X,54),(O,2),(N,36)]]
 ghci>
 -}
 blocking :: Board -> [Location]
@@ -500,7 +500,7 @@ blocking brd
 --   this is the problem,
 --         if there's two of these we need to return forcables, which are not these <- wrong!
 --         need to force opponent to play a different one ...
-  | length inboth > 0 = inboth
+  | length inboth == 1 = inboth
   | length forceableOnly > 0 = forceableOnly
   | otherwise = forkableByOpponent
 -- find locations with open rows already occupied
