@@ -441,8 +441,11 @@ ghci>
 
 
 -- TODO collapse this once function signatures have been normalised
+
+
+
 cleverMove :: Board -> Board
-cleverMove brd
+cleverMove  brd
   -- If opening move, play a corner
   | length openingMoves > 0 = makeMove (head openingMoves) brd
   -- Win: If the player has two in a row, the player plays the third to win
@@ -528,21 +531,13 @@ diffs l1 l2 = toList $ difference  (fromList l1) (fromList l2)
 
 {-
 
+ghci> blocking brd
+[(T,C),(M,L)]   <- mised the good corner
+ghci> brd
 |O|N|N|
 |N|X|N|
 |N|N|X|
 3: O to move
-
-|O|O|N|
-|N|X|N|
-|N|N|X|
-4: X to move
-
-|O|O|X|
-|N|X|N|
-|N|N|X|
-5: O to move
-
 
 -}
 
