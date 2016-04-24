@@ -50,11 +50,13 @@ playPossibles (bb:bs)
 -- for a list of boards, prepend next move using strategy
 autoNextMove :: Strategy -> [Board] -> [Board]
 autoNextMove  _ [] = []
-autoNextMove s (brd:bs) = s brd : (brd:bs)
+autoNextMove s (brd:bs)
+  | finished brd =  (brd:bs)
+  | otherwise = s brd : (brd:bs)
 
 playUsing :: Strategy -> Board -> Board
 playUsing  s brd
-  | aWinner brd = brd
+  | finished brd = brd
   | otherwise = s brd
 
 playARoundUsing :: Strategy -> Board -> Int -> Board
@@ -163,6 +165,11 @@ forkableByOpponent = canFork opy brd
 inboth = intersect forceable forkableByOpponent
 forceableOnly = diffs forceable forkableByOpponent
 blockables = blocking brd
+-- its a corner & it owns the other corner, so playing here will force oppoent to defend in middle
+--  (thereby keeping opponent from exploiting an opportunity)
+cornerBlock = [l | l <- inboth, (elem l corners) && (length (filter (\sq ->  (tic sq) == ply) (squaresFor brd (adjacentCorners l))) > 0)]
+-- these are really forceableMiddle, i.e. middleBlock ?
+forceToMiddle = [l | l <- forceable, (not $ elem l corners) ]
 
 
 

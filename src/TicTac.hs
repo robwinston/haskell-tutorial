@@ -11,14 +11,14 @@ import  qualified Data.Set as DS
 
 play :: Board -> Int -> Board
 play brd i
- | aWinner brd = brd
+ | finished brd = brd
  | isNothing loc  = cleverMove brd
  | otherwise = playl brd (fromJust loc)
  where loc = maybeLocation i
 
 playl :: Board -> Location -> Board
 playl brd loc
-  | aWinner brd = brd
+  | finished brd = brd
   | otherwise = makeSuppliedMove brd loc
 
 
@@ -56,24 +56,21 @@ canFork ply brd  =
 blocking :: Board -> [Location]
 blocking brd
   | not $ null $ cornerBlock = cornerBlock
-  | not $ null $ forceToMiddle = forceToMiddle
+  | not $ null $ forceableMiddle = forceableMiddle
   | not $ null $ forkableByOpponent = forkableByOpponent
-  | not $ null $ forceableOnly = forceableOnly
+  | not $ null $ forceable = forceable
   | otherwise = []
-  where forceable = canForce ply brd
-        forkableByOpponent = canFork opy brd
-        inboth = intersect forceable forkableByOpponent
-        forceableOnly = [l | l <- diffs forceable forkableByOpponent, not $ hasEmptyRow brd l]
-        ply = whosMove brd
-        opy = otherPlayer ply
-        -- its a corner & it owns the other corner, so playing here will force oppoent to defend in middle
-        --  (thereby keeping opponent from exploiting an opportunity)
-        cornerBlock = [l | l <- inboth, (elem l corners) && (length (filter (\sq ->  (tic sq) == ply) (squaresFor brd (adjacentCorners l))) > 0)]
+         -- its a corner & it owns the other corner, so playing here will force oppoent to defend in middle
+         --  (thereby keeping opponent from exploiting an opportunity)
+   where cornerBlock = [l | l <- inboth, (elem l corners) && (length (filter (\sq ->  (tic sq) == ply) (squaresFor brd (adjacentCorners l))) > 0)]
+         forceableMiddle = [l | l <- forceable, not $ elem l corners ]
+         forkableByOpponent = canFork opy brd
+         forceable = canForce ply brd
+         inboth = intersect forceable forkableByOpponent
+         -- cornerSquaresWithAdjCorners :: Board -> [(Square, [Square])]
+         ply = whosMove brd
+         opy = otherPlayer ply
 
-        -- these are really forceableMiddle, i.e. middleBlock ?
-        forceToMiddle = [l | l <- forceable, (not $ elem l corners) && (not $ hasEmptyRow brd l)]
-        -- this needs to check for an empty row, which appears to be one case where this is a bad move?
-        -- hasEmptyRow :: Board -> Location -> Bool
 
 
 canForce :: Player -> Board -> [Location]
