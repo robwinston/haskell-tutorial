@@ -26,7 +26,7 @@ oppositeOccupied brd = [loc | loc <- unplayedLocations brd, (elem loc corners)  
 
 openingMove :: Board -> [Location]
 openingMove brd
-  | (length $ allLocations brd) - (length $ unplayedLocations brd)  == 0 = corners
+  | (length $ allLocations brd) == (length $ unplayedLocations brd) = corners
   | otherwise = []
 
 canWin :: Player -> Board -> [Location]
@@ -41,10 +41,10 @@ canFork ply brd  =
 
 blocking :: Board -> [Location]
 blocking brd
-  | length cornerBlock > 0 = cornerBlock
-  | length forceToMiddle > 0 = forceToMiddle
-  | length forkableByOpponent > 0 = forkableByOpponent
-  | length forceableOnly > 0 = forceableOnly
+  | not $ null $ cornerBlock = cornerBlock
+  | not $ null $ forceToMiddle = forceToMiddle
+  | not $ null $ forkableByOpponent = forkableByOpponent
+  | not $ null $ forceableOnly = forceableOnly
   | otherwise = []
   where forceable = canForce ply brd
         forkableByOpponent = canFork opy brd

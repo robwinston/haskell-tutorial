@@ -154,9 +154,6 @@ moveThrough (ls, brd)
 
 -- \ programmed play
 
-
-{-
-
 -- load some test data ... for ghci devel
 apg = allPossibleGames cleverMove newBoard
 apo = map gameOutcome apg
@@ -166,9 +163,9 @@ apgX = gamesFor apg X
 apgO = gamesFor apg O
 apgN = gamesFor apg N
 
-apgoO = [g | (g,o@Outcome{player=ply,moves=m}) <- apgo, ply == O]
-apgoX = [g | (g,o@Outcome{player=ply,moves=m}) <- apgo, ply == X]
-apgoN = [g | (g,o@Outcome{player=ply,moves=m}) <- apgo, ply == N]
+apgoO = [g | (g, (Outcome ply m)) <- apgo, ply == O]
+apgoX = [g | (g, (Outcome ply m)) <- apgo, ply == X]
+apgoN = [g | (g, (Outcome ply m)) <- apgo, ply == N]
 
 gO0 = head apgoO
 gX0 = head apgoX
@@ -184,7 +181,6 @@ inboth = intersect forceable forkableByOpponent
 forceableOnly = diffs forceable forkableByOpponent
 blockables = blocking brd
 
--}
 
 
 
