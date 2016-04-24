@@ -114,6 +114,15 @@ data Score =  Unplayable | Blocked | Playable | MaybeOther | MaybeMe | ForkableO
 
 -- / Game functions
 
+boardsByMove :: Game -> [(Int, Board)]
+boardsByMove g = zip [0..] (boards g)
+
+boardForMove :: Game -> Int -> Maybe Board
+boardForMove g m
+ | null bfm = Nothing
+ | otherwise = Just (head bfm)
+  where bfm = [brd | (mv,brd) <- (boardsByMove g), mv == m]
+
 gamesFor :: [Game] -> Player -> [Game]
 gamesFor games py = [g | g@(Game bds) <- games, (player $ gameOutcome g) == py]
 
@@ -172,8 +181,9 @@ isUnplayedLocation brd loc = elem loc $ unplayedLocations brd
 
 unplayedIntersections :: Board -> [Intersection]
 unplayedIntersections brd =  filter (\i -> isUnplayedLocation brd (nexus i)) (byIntersections brd)
-  where byIntersections :: Board -> [Intersection]
-        byIntersections  brd = map (\loc -> Intersection loc (winningCombos loc brd)) definedLocations
+
+byIntersections :: Board -> [Intersection]
+byIntersections  brd = map (\loc -> Intersection loc (winningCombos loc brd)) definedLocations
 
 unplayedSquares :: Board -> [Square]
 unplayedSquares brd = filter (\sq -> tic sq == N) (squares brd)
@@ -189,6 +199,11 @@ winningRows brd = map (squaresFor brd) winners
 
 isUnoccupied :: [Location] -> Board -> [Location]
 isUnoccupied locs brd  = [loc | (Intersection loc r) <- unplayedIntersections brd, elem loc locs]
+
+hasEmptyRow :: Board -> Location -> Bool
+hasEmptyRow brd loc = hasUntouchedRow tToCheck
+    where  iToCheck = fromJust $ (find (\(Intersection li rsi) -> li == loc) (byIntersections brd))
+           tToCheck = asTally iToCheck
 
 whoWon :: Board -> Player
 whoWon brd
@@ -235,16 +250,6 @@ diffBoards b1 b2 = diffSquares (squares b1) (squares b2)
 
 newBoard :: Board
 newBoard = Board (map (\i -> Square i N 0) definedLocations)
-
-
-boardsByMove :: Game -> [(Int, Board)]
-boardsByMove g = zip [0..] (boards g)
-
-boardForMove :: Game -> Int -> Maybe Board
-boardForMove g m
- | null bfm = Nothing
- | otherwise = Just (head bfm)
-  where bfm = [brd | (mv,brd) <- (boardsByMove g), mv == m]
 
 
 --given a row major list of players, generate a "phony" (i.e. no move #'s) board for testing
@@ -431,8 +436,14 @@ itsRank loc
 
 -- / Intersection functions
 
+-- Intersection: ((M,L),[[|(M,L):N:0|,|(M,C):N:0|,|(M,R):N:0|],[|(T,L):X:1|,|(M,L):N:0|,|(B,L):N:0|]])
+-- Tally:        ((M,L),[[(N,3),(X,0),(O,0)],[(N,2),(X,1),(O,0)]])
+
 asTally :: Intersection -> (Location, [[Tally]])
 asTally (Intersection loc sqss) = (loc, map countPlayersInEachRow sqss)
+
+hasUntouchedRow :: (Location, [[Tally]]) -> Bool
+hasUntouchedRow (loc, tyss) = not $ null $ filter (\(py,ct) -> py == N && ct == 3) (concat tyss)
 
 -- \ Intersection functions
 
@@ -495,4 +506,5 @@ countPlayersInEachRow sqs = [(ply, (countPlayerInEachRow sqs ply)) | ply <- play
 
 countPlayerInEachRow :: [Square] -> Player -> Int
 countPlayerInEachRow sqs ply = length $ filter (\sq -> tic sq == ply) sqs
+
 

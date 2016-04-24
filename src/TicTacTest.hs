@@ -52,23 +52,6 @@ autoNextMove :: Strategy -> [Board] -> [Board]
 autoNextMove  _ [] = []
 autoNextMove s (brd:bs) = s brd : (brd:bs)
 
--- / game play
-dummyStrategy :: Board -> Board
-dummyStrategy brd = brd
-
-play :: Board -> Int -> Board
-play brd i
- | aWinner brd = brd
- | isNothing loc  = dummyStrategy brd
- | otherwise = playl brd (fromJust loc)
- where loc = maybeLocation i
-
-playl :: Board -> Location -> Board
-playl brd loc
-  | aWinner brd = brd
-  | otherwise = makeSuppliedMove brd loc
-
-
 playUsing :: Strategy -> Board -> Board
 playUsing  s brd
   | aWinner brd = brd
@@ -155,7 +138,7 @@ moveThrough (ls, brd)
 -- \ programmed play
 
 -- load some test data ... for ghci devel
-apg = allPossibleGames cleverMove newBoard
+apg = allPossibleGames cleverMove (cleverMove newBoard)
 apo = map gameOutcome apg
 apgo = zip apg apo
 
@@ -171,8 +154,8 @@ gO0 = head apgoO
 gX0 = head apgoX
 gN0 = head apgoN
 
-gX = head apgX
-brd = fromJust $ boardForMove gX 3
+gO = head apgO
+brd = fromJust $ boardForMove gO 1
 ply = whosMove brd
 opy = otherPlayer ply
 forceable = canForce ply brd
@@ -180,7 +163,6 @@ forkableByOpponent = canFork opy brd
 inboth = intersect forceable forkableByOpponent
 forceableOnly = diffs forceable forkableByOpponent
 blockables = blocking brd
-
 
 
 
