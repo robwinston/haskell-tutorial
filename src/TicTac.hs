@@ -126,14 +126,14 @@ players = fullRange
 -- \ Player functions
 
 -- / Location functions
-usableLocations :: [Location]
-usableLocations = [(r,c)| r <- fullRange, c <- fullRange]
+definedLocations :: [Location]
+definedLocations = [(r,c)| r <- fullRange, c <- fullRange]
 
 maybeLocation :: Int -> Maybe Location
 maybeLocation i
   | i < 1 || i > length ls = Nothing
   | otherwise = Just (ls !! (i - 1))
-  where ls = usableLocations
+  where ls = definedLocations
 
 rankLocation :: Location -> Location -> Ordering
 rankLocation p1 p2 = compare (itsRank p1) (itsRank p2)
@@ -201,7 +201,7 @@ asTally (Intersection loc sqss) = (loc, map countPlayersInEachRow sqss)
 
 -- / Board functions
 newBoard :: Board
-newBoard = Board (map (\i -> Square i N 0) usableLocations)
+newBoard = Board (map (\i -> Square i N 0) definedLocations)
 
 
 boardsByMove :: Game -> [(Int, Board)]
@@ -219,8 +219,8 @@ boardForMove g m
 --  2) invalid list will generate an invalid board
 --  3) empty list employs the players function to generate one
 boardFor :: [Player] -> Board
-boardFor [] = Board [Square (snd pl) (fst pl)  0 | pl <- zip (players ++ (reverse players) ++ players) usableLocations ]
-boardFor plys = Board [Square (snd pl) (fst pl)  0 | pl <- zip (cycle plys) usableLocations ]
+boardFor [] = Board [Square (snd pl) (fst pl)  0 | pl <- zip (players ++ (reverse players) ++ players) definedLocations ]
+boardFor plys = Board [Square (snd pl) (fst pl)  0 | pl <- zip (cycle plys) definedLocations ]
 
 -- opponent has a tic in all rows
 isBlocked :: Board -> Bool
@@ -371,7 +371,7 @@ ghci> autoPlayAllUsing smarterMove
 
 -- auto-play from all possible starting positions, return list of winner for each game
 autoPlayAllUsing :: Strategy -> [Player]
-autoPlayAllUsing strategy = map whoWon $ map (autoPlayFromUsing strategy) usableLocations
+autoPlayAllUsing strategy = map whoWon $ map (autoPlayFromUsing strategy) definedLocations
 
 -- auto-play a single game, starting with supplied location, using default strategy
 autoPlayFrom :: Location -> Board
@@ -443,40 +443,15 @@ countPlayersInEachRow sqs = [(ply, (countPlayerInEachRow sqs ply)) | ply <- play
 countPlayerInEachRow :: [Square] -> Player -> Int
 countPlayerInEachRow sqs ply = length $ filter (\sq -> tic sq == ply) sqs
 
--- TODO collapse this once function signatures have been normalised
 cleverMove :: Board -> Board
-cleverMove  brd
-  -- If opening move, play a corner
-  | length openingMoves > 0 = makeMove brd (head openingMoves)
-  -- Win: If the player has two in a row, the player plays the third to win
-  | length winables > 0 = makeMove brd (head winables)
-  -- Block: If the opponent has two in a row, the player plays the third to block
-  | length losables > 0 = makeMove brd (head losables)
-  -- Fork: Create an opportunity where the player has two threats to win (two non-blocked lines of 2).
-  | length forkables > 0 = makeMove brd (head forkables)
-  -- Block: force player or block their forkable
-  | length blockables > 0 = makeMove brd (head blockables)
-  -- Center: play centre
-  | length ctrs > 0 = makeMove brd (head ctrs)
-  -- Opposite: if oppenent occupies opposite corner, play it
-  | length opcs > 0 = makeMove brd (head opcs)
-  -- Open corner: if there's an open corner, play it
-  | length ocs > 0 = makeMove brd (head ocs)
-  -- Open middle: if there's an open middle, play it
-  | length oms > 0 = makeMove brd (head oms)
-  | length lup > 0 = makeMove brd (head lup)
+cleverMove brd
+  | isJust whereToMove = makeMove brd (head $ fromJust whereToMove)
   | otherwise = brd
-  where openingMoves = openingMove brd
-        winables = canWin (whosMove brd) brd
-        losables = canWin (otherPlayer $ whosMove brd) brd
-        forkables = canFork (whosMove brd) brd
-        blockables = blocking brd
-        ctrs = isUnoccupied  centre brd
-        opcs = oppositeOccupied brd
-        ocs = isUnoccupied  corners brd
-        oms = isUnoccupied  middles brd
-        lup = unplayedLocations brd
-
+  where ply = whosMove brd
+        opy = otherPlayer ply
+        tests :: [(Board -> [Location])]
+        tests = [openingMove, canWin ply, canWin opy, canFork ply, blocking, isUnoccupied  centre, oppositeOccupied, isUnoccupied corners, isUnoccupied middles, unplayedLocations]
+        whereToMove = find (\mvs -> length mvs > 0)  (map (\f -> f brd) tests)
 
 -- unplayed corners occupied by opponent
 oppositeOccupied :: Board -> [Location]
@@ -487,7 +462,6 @@ openingMove :: Board -> [Location]
 openingMove brd
   | (length $ allLocations brd) - (length $ unplayedLocations brd)  == 0 = corners
   | otherwise = []
-
 
 canWin :: Player -> Board -> [Location]
 canWin ply brd  =
@@ -702,10 +676,10 @@ areAdjacent loc1 loc2 =  (elem loc1 (adjacentLocations loc2)) || (elem loc2 (adj
 
 
 shareRow :: Location -> [Location]
-shareRow loc@(row,col) = diffs [l | l@(r,c) <- usableLocations, r == row] [loc]
+shareRow loc@(row,col) = diffs [l | l@(r,c) <- definedLocations, r == row] [loc]
 
 shareColumn :: Location -> [Location]
-shareColumn loc@(row,col) = diffs [l | l@(r,c) <- usableLocations, c == col] [loc]
+shareColumn loc@(row,col) = diffs [l | l@(r,c) <- definedLocations, c == col] [loc]
 
 shareDiag :: Location -> [Location]
 shareDiag loc = []
@@ -825,7 +799,7 @@ winningCombos theLocation brd = (filter (\w -> elem theLocation (map location w)
 unplayedIntersections :: Board -> [Intersection]
 unplayedIntersections brd =  filter (\i -> isUnplayedLocation brd (nexus i)) (byIntersections brd)
   where byIntersections :: Board -> [Intersection]
-        byIntersections  brd = map (\loc -> Intersection loc (winningCombos loc brd)) usableLocations
+        byIntersections  brd = map (\loc -> Intersection loc (winningCombos loc brd)) definedLocations
 
 -- represent a board as a list of lists of tallys for each unplayed location
 unplayedTallys :: Board -> [(Location, [[Tally]])]
@@ -937,7 +911,7 @@ playGame :: Int -> Board
 playGame n =  snd $ moveThrough (game, newBoard)
   where game =  allPlaySequences !! mod n 362880
 
-allPlaySequences = permu usableLocations
+allPlaySequences = permu definedLocations
 
 -- given a sequence of locations & a board,
 -- play until someone wins or no more moves
