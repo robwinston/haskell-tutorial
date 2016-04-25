@@ -145,7 +145,7 @@ moveThrough (ls, brd)
 
 -- \ programmed play
 
--- load some test data ... for ghci devel
+-- test data retrieval ... for ghci devel
 apg = allPossibleGames cleverMove O newBoard
 apo = map gameOutcome apg
 apgo = zip apg apo
@@ -153,29 +153,4 @@ apgo = zip apg apo
 apgX = gamesFor apg X
 apgO = gamesFor apg O
 apgN = gamesFor apg N
-
-apgoO = [g | (g, (Outcome ply m)) <- apgo, ply == O]
-apgoX = [g | (g, (Outcome ply m)) <- apgo, ply == X]
-apgoN = [g | (g, (Outcome ply m)) <- apgo, ply == N]
-
-gO0 = head apgoO
-gX0 = head apgoX
-gN0 = head apgoN
-
-gO = head apgO
-brd = fromJust $ boardForMove gO 1
-ply = whosMove brd
-opy = otherPlayer ply
-forceable = canForce ply brd
-forkableByOpponent = canFork opy brd
-inboth = intersect forceable forkableByOpponent
-forceableOnly = diffs forceable forkableByOpponent
-blockables = blocking brd
--- its a corner & it owns the other corner, so playing here will force oppoent to defend in middle
---  (thereby keeping opponent from exploiting an opportunity)
-cornerBlock = [l | l <- inboth, (elem l corners) && (length (filter (\sq ->  (tic sq) == ply) (squaresFor brd (adjacentCorners l))) > 0)]
--- these are really forceableMiddle, i.e. middleBlock ?
-forceToMiddle = [l | l <- forceable, (not $ elem l corners) ]
-
-
 

@@ -22,6 +22,11 @@ playl brd loc
   | otherwise = makeSuppliedMove brd loc
 
 
+{-
+ghci> map (strategyChecker cleverMove) [X,O]
+[[(X,0),(O,370),(N,87)],[(X,86),(O,0),(N,6)]]
+ghci>
+-}
 
 cleverMove :: Board -> Board
 cleverMove brd

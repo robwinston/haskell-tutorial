@@ -186,6 +186,12 @@ unplayedIntersections brd =  filter (\i -> isUnplayedLocation brd (nexus i)) (by
 byIntersections :: Board -> [Intersection]
 byIntersections  brd = map (\loc -> Intersection loc (winningCombos loc brd)) definedLocations
 
+byTallys :: Board -> [(Location, [[Tally]])]
+byTallys brd = map asTally (byIntersections brd)
+
+allTallys brd = concat $ [concat $ tys | (l,tys) <- byTallys brd]
+allWinningTallys brd = nub $ filter (\(p,t) -> t == 3) $ allTallys brd
+allWinningTallysFor brd ply = filter (\(p,t) -> p == ply) $ allWinningTallys brd
 
 byIntersectionsMap :: Board -> DM.Map Location [[Square]]
 byIntersectionsMap  brd = DM.fromList $  map (\(Intersection loc sqrs) -> (loc,sqrs)) $ map (\loc -> Intersection loc (winningCombos loc brd)) definedLocations
@@ -234,9 +240,14 @@ hasEmptyRow brd loc = hasUntouchedRow tToCheck
 
 whoWon :: Board -> Player
 whoWon brd
- | winner brd X = X
- | winner brd O = O
+ | isJust $ find (\(p,t) -> p == O) awt = O
+ | isJust $ find (\(p,t) -> p == X) awt = X
  | otherwise = N
+ where awt = allWinningTallys brd
+
+
+isTheWinner :: Board -> Player -> Bool
+isTheWinner brd ply =  not $ null $ allWinningTallysFor brd ply
 
 -- give all moves made by winning player, not just winning sequence
 howWon :: Board -> (Player, [Location])
@@ -251,10 +262,6 @@ whosMove brd
  | mod movesLeft 2 == 0 = O
  | otherwise = X
  where movesLeft = length $ unplayedSquares brd
-
-winner :: Board -> Player -> Bool
-winner brd ply =  or $ map (\w -> isInfixOf w ticked) winners
-  where ticked = map location (filter (\sqr -> (tic sqr) == ply) (squares brd))
 
 -- given a location & board, return location's winning combos from board
 winningCombos :: Location -> Board -> [[Square]]
