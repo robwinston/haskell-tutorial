@@ -46,8 +46,18 @@ oppositeOccupied brd = [loc | loc <- unplayedLocations brd, (elem loc corners)  
 openingMove :: Board -> [Location]
 openingMove brd
   | movesCount brd == 0 = corners
-  -- silly special case ... early in the game when computer plays first
-  -- this changes O wins from 1 to 2 ... so the issue comes after this?
+  -- silly special case ... for early in the game when computer plays first
+  -- 2nd time computer plays it's too early to "block" if the centre is still open
+  {-
+  without:
+  ghci> map (strategyChecker cleverMove) [X,O]
+  [[(X,0),(O,370),(N,87)],[(X,71),(O,2),(N,6)]]
+  with:
+  ghci> map (strategyChecker cleverMove) [X,O]
+  [[(X,0),(O,370),(N,87)],[(X,86),(O,0),(N,6)]]
+
+  -}
+
   | movesCount brd == 2 && (not $ null $ isUnoccupied centre brd) = centre
   | otherwise = []
 
