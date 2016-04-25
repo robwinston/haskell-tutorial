@@ -12,33 +12,27 @@ import  qualified Data.Map as DM
 
 strategyChecker :: Strategy -> Player -> [(Player, Int)]
 strategyChecker sty ply =  map (\py -> (py,(winnersFor outcomes py))) [X,O,N]
-  where allGames = allPossibleGames sty $ boardToUse ply
+  where allGames = allPossibleGames sty ply newBoard
         outcomes = map gameOutcome allGames
-        -- if X -> "human" plays first
-        boardToUse X = newBoard
-        -- if O -> computer plays first
-        boardToUse O = sty newBoard
-        -- if N -> "human" plays first
-        boardToUse N = newBoard
 
--- Given a strategy and a board, return all possible outcomes human v computer using supplied strategy
-allPossibleGames :: Strategy -> Board -> [Game]
-allPossibleGames sty brd = map (aGameFrom) (playAllPossibleRounds sty [[brd]])
+-- Given a strategy, which player is human, and a board, return all possible outcomes human v computer using supplied strategy
+allPossibleGames :: Strategy -> Player -> Board -> [Game]
+allPossibleGames sty ply brd = map (aGameFrom) (playAllPossibleRounds sty ply [[brd]])
 
 
-playAllPossibleRounds :: Strategy -> [[Board]] -> [[Board]]
-playAllPossibleRounds sty  [] = playAllPossibleRounds sty [[newBoard]]
-playAllPossibleRounds sty bdss
+playAllPossibleRounds :: Strategy -> Player -> [[Board]] -> [[Board]]
+playAllPossibleRounds sty  ply [] = playAllPossibleRounds sty ply [[newBoard]]
+playAllPossibleRounds sty ply bdss
   | (length $ filter (\bds -> not $ finished $ head bds) bdss) == 0 = bdss
-  | otherwise = playAllPossibleRounds sty (concat $ map (\bds -> playPossibleRounds sty bds) bdss)
+  | otherwise = playAllPossibleRounds sty ply (concat $ map (\bds -> playPossibleRounds sty ply bds) bdss)
 
 -- for the head of a given board sequence, prepend all of the next possible rounds
 -- where a round is
 --  1) a specified move - representing a "human"
 --  2) the computer's response (using specified strategy)
 -- a given play is short-cicuited when a winner/draw is reached
-playPossibleRounds :: Strategy -> [Board] -> [[Board]]
-playPossibleRounds sty bseq = (map (autoNextMove sty) $ filter (\x -> not $ finished $ head x) bseqn)  ++ filter (\x -> finished $ head x)  bseqn
+playPossibleRounds :: Strategy -> Player -> [Board] -> [[Board]]
+playPossibleRounds sty ply bseq = (map (autoNextMove sty) $ filter (\x -> not $ finished $ head x) bseqn)  ++ filter (\x -> finished $ head x)  bseqn
   where bseqn = playPossibles bseq
 
 -- for the head of a given board sequence, prepend all of the n possible moves, yielding n board sequences
@@ -142,7 +136,7 @@ moveThrough (ls, brd)
 -- \ programmed play
 
 -- load some test data ... for ghci devel
-apg = allPossibleGames cleverMove (cleverMove newBoard)
+apg = allPossibleGames cleverMove O newBoard
 apo = map gameOutcome apg
 apgo = zip apg apo
 
