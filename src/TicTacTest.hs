@@ -7,28 +7,30 @@ import Data.List
 import Data.Maybe
 import Data.Ord
 import  qualified Data.Set as DS
+import  qualified Data.Map as DM
+
 
 strategyChecker :: Strategy -> Player -> [(Player, Int)]
-strategyChecker s ply =  map (\py -> (py,(winnersFor outcomes py))) [X,O,N]
-  where allGames = allPossibleGames s $ boardToUse ply
+strategyChecker sty ply =  map (\py -> (py,(winnersFor outcomes py))) [X,O,N]
+  where allGames = allPossibleGames sty $ boardToUse ply
         outcomes = map gameOutcome allGames
         -- if X -> "human" plays first
         boardToUse X = newBoard
         -- if O -> computer plays first
-        boardToUse O = s newBoard
+        boardToUse O = sty newBoard
         -- if N -> "human" plays first
         boardToUse N = newBoard
 
 -- Given a strategy and a board, return all possible outcomes human v computer using supplied strategy
 allPossibleGames :: Strategy -> Board -> [Game]
-allPossibleGames s brd = map (aGameFrom) (playAllPossibleRounds s [[brd]])
+allPossibleGames sty brd = map (aGameFrom) (playAllPossibleRounds sty [[brd]])
 
 
 playAllPossibleRounds :: Strategy -> [[Board]] -> [[Board]]
-playAllPossibleRounds s  [] = playAllPossibleRounds s [[newBoard]]
-playAllPossibleRounds s bdss
+playAllPossibleRounds sty  [] = playAllPossibleRounds sty [[newBoard]]
+playAllPossibleRounds sty bdss
   | (length $ filter (\bds -> not $ finished $ head bds) bdss) == 0 = bdss
-  | otherwise = playAllPossibleRounds s (concat $ map (\bds -> playPossibleRounds s bds) bdss)
+  | otherwise = playAllPossibleRounds sty (concat $ map (\bds -> playPossibleRounds sty bds) bdss)
 
 -- for the head of a given board sequence, prepend all of the next possible rounds
 -- where a round is
@@ -36,7 +38,7 @@ playAllPossibleRounds s bdss
 --  2) the computer's response (using specified strategy)
 -- a given play is short-cicuited when a winner/draw is reached
 playPossibleRounds :: Strategy -> [Board] -> [[Board]]
-playPossibleRounds s bseq = (map (autoNextMove s) $ filter (\x -> not $ finished $ head x) bseqn)  ++ filter (\x -> finished $ head x)  bseqn
+playPossibleRounds sty bseq = (map (autoNextMove sty) $ filter (\x -> not $ finished $ head x) bseqn)  ++ filter (\x -> finished $ head x)  bseqn
   where bseqn = playPossibles bseq
 
 -- for the head of a given board sequence, prepend all of the n possible moves, yielding n board sequences
@@ -50,24 +52,24 @@ playPossibles (bb:bs)
 -- for a list of boards, prepend next move using strategy
 autoNextMove :: Strategy -> [Board] -> [Board]
 autoNextMove  _ [] = []
-autoNextMove s (brd:bs)
+autoNextMove sty (brd:bs)
   | finished brd =  (brd:bs)
-  | otherwise = s brd : (brd:bs)
+  | otherwise = sty brd : (brd:bs)
 
 playUsing :: Strategy -> Board -> Board
-playUsing  s brd
+playUsing  sty brd
   | finished brd = brd
-  | otherwise = s brd
+  | otherwise = sty brd
 
 playARoundUsing :: Strategy -> Board -> Int -> Board
-playARoundUsing s brd i
+playARoundUsing sty brd i
  | aWinner brd = brd
  | aWinner nextBoard = nextBoard
- | otherwise = s nextBoard
+ | otherwise = sty nextBoard
  where ml = maybeLocation i
        nextBoard = firstMove brd ml
        firstMove brd ml
-         | isNothing ml = s brd
+         | isNothing ml = sty brd
          | otherwise = makeSuppliedMove  brd (fromJust ml)
 
 -- for all of the auto-play strategies accepting a starting board -
@@ -102,11 +104,11 @@ autoPlayFromUsingTrack strategy start = autoPlayUsingTrack strategy ([makeMove b
 -- prepend board to list after each move
 autoPlayUsingTrack :: Strategy -> [Board] -> [Board]
 autoPlayUsingTrack strategy [] =  autoPlayUsingTrack strategy [newBoard]
-autoPlayUsingTrack strategy boards
-  | aWinner nextBoard = nextBoard : boards
-  | not $ hasUnplayed (squares nextBoard) = nextBoard : boards
-  | otherwise = autoPlayUsingTrack strategy (nextBoard : boards)
-  where nextBoard = strategy $ head boards
+autoPlayUsingTrack strategy bds
+  | aWinner nextBoard = nextBoard : bds
+  | not $ hasUnplayed (squares nextBoard) = nextBoard : bds
+  | otherwise = autoPlayUsingTrack strategy (nextBoard : bds)
+  where nextBoard = strategy $ head bds
 
 -- \ game play
 

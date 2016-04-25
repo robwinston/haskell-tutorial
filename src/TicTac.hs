@@ -40,7 +40,10 @@ oppositeOccupied brd = [loc | loc <- unplayedLocations brd, (elem loc corners)  
 
 openingMove :: Board -> [Location]
 openingMove brd
-  | (length $ allLocations brd) == (length $ unplayedLocations brd) = corners
+  | movesCount brd == 0 = corners
+  -- silly special case ... early in the game when computer plays first
+  -- this changes O wins from 1 to 2 ... so the issue comes after this?
+  | movesCount brd == 2 && (not $ null $ isUnoccupied centre brd) = centre
   | otherwise = []
 
 canWin :: Player -> Board -> [Location]
@@ -62,12 +65,12 @@ blocking brd
   | otherwise = []
          -- its a corner & it owns the other corner, so playing here will force oppoent to defend in middle
          --  (thereby keeping opponent from exploiting an opportunity)
+         -- looks like maybe here's the flaw ... misses a diagonal corner block - i.e., one row & diag
    where cornerBlock = [l | l <- inboth, (elem l corners) && (length (filter (\sq ->  (tic sq) == ply) (squaresFor brd (adjacentCorners l))) > 0)]
          forceableMiddle = [l | l <- forceable, not $ elem l corners ]
          forkableByOpponent = canFork opy brd
          forceable = canForce ply brd
          inboth = intersect forceable forkableByOpponent
-         -- cornerSquaresWithAdjCorners :: Board -> [(Square, [Square])]
          ply = whosMove brd
          opy = otherPlayer ply
 

@@ -4,6 +4,7 @@ import Data.List
 import Data.Maybe
 import Data.Ord
 import  qualified Data.Set as DS
+import  qualified Data.Map as DM
 
 
 -- / Data types
@@ -33,7 +34,7 @@ data Square = Square {
                  move :: Move }
               deriving (Eq, Ord)
 instance Show Square
-  where show square@(Square loc ply m) = "|" ++ show loc ++ ":" ++ show ply ++ ":" ++ show m ++ "|"
+  where show (Square loc ply m) = "|" ++ show loc ++ ":" ++ show ply ++ ":" ++ show m ++ "|"
 
 
 data Intersection = Intersection  {
@@ -51,7 +52,7 @@ instance Ord Board
   where compare b1@(Board sqs1) b2@(Board sqs2)  = compare (movesCount b1) (movesCount b2)
 
 instance Show Board
-  where show brd@(Board sqs) = "\n" ++ (fst (squaresToGrid ("", sqs))) ++ (boardState brd)
+  where show brd@(Board sqrs) = "\n" ++ (fst (squaresToGrid ("", sqrs))) ++ (boardState brd)
             where boardState :: Board -> String
                   boardState brd
                     | aWinner brd = mvs ++ (show $ whoWon brd)  ++ " wins!\n"
@@ -66,7 +67,7 @@ instance Show Board
                     | otherwise =  squaresToGrid ((gridString ++ (removeDupes (concat (map justTic row))) ++ "\n"), whatsLeft)
                     where (row, whatsLeft) = splitAt 3 squares
                           justTic :: Square -> String
-                          justTic square  = "|" ++ show (tic square) ++ "|"
+                          justTic sqr  = "|" ++ show (tic sqr) ++ "|"
 
 
 data Game = Game {
@@ -75,18 +76,18 @@ data Game = Game {
        deriving (Eq)
 
 instance Show Game
-  where show (Game bds) = showGame (Game bds)
+  where show (Game brds) = showGame (Game brds)
 
 showGame :: Game -> String
-showGame ((Game bds)) = (gameString "Game sequence: \n" bds) ++ "Moves: " ++ movesMade ++ "\n"
+showGame ((Game brds)) = (gameString "Game sequence: \n" brds) ++ "Moves: " ++ movesMade ++ "\n"
   where movesMade
-          | length bds < 2 = "none"
-          | otherwise = show $ movesList (head bds) (last bds)
+          | length brds < 2 = "none"
+          | otherwise = show $ movesList (head brds) (last brds)
         gameString :: String -> [Board] -> String
-        gameString s [] = s ++ "No boards!"
-        gameString s (brd:bds)
-          | null bds = s ++ show brd ++ "\n" ++ show (movesCount brd) ++ " moves made\n"
-          | otherwise = gameString (s ++ show brd ++ "\n") bds
+        gameString str [] = str ++ "No boards!"
+        gameString str (brd:brds)
+          | null brds = str ++ show brd ++ "\n" ++ show (movesCount brd) ++ " moves made\n"
+          | otherwise = gameString (str ++ show brd ++ "\n") brds
 instance Ord Game
   where compare g1@(Game bds1) g2@(Game sqs2) = compare (gameOutcome g1) (gameOutcome g2)
 
@@ -115,7 +116,7 @@ data Score =  Unplayable | Blocked | Playable | MaybeOther | MaybeMe | ForkableO
 -- / Game functions
 
 boardsByMove :: Game -> [(Int, Board)]
-boardsByMove g = zip [0..] (boards g)
+boardsByMove g = zip [1..] (boards g)
 
 boardForMove :: Game -> Int -> Maybe Board
 boardForMove g m
@@ -124,20 +125,20 @@ boardForMove g m
   where bfm = [brd | (mv,brd) <- (boardsByMove g), mv == m]
 
 gamesFor :: [Game] -> Player -> [Game]
-gamesFor games py = [g | g@(Game bds) <- games, (player $ gameOutcome g) == py]
+gamesFor games py = [g | g@(Game brds) <- games, (player $ gameOutcome g) == py]
 
 aGameFrom :: [Board] -> Game
-aGameFrom bds = Game (sort bds)  -- Board's ORD compares how many moves have been made
+aGameFrom brds = Game (sort brds)  -- Board's ORD compares how many moves have been made
 
 asGame :: Board -> Game
 asGame brd = Game [newBoard, brd]
 
 gamePlay :: Game -> (Player, [Square])
-gamePlay (Game bds) = (whoWon $ last bds, movesList (head bds) (last bds))
+gamePlay (Game brds) = (whoWon $ last brds, movesList (head brds) (last brds))
 
 -- for a game - return winner (N == Draw) & # of moves
 gameOutcome :: Game -> Outcome
-gameOutcome (Game bds) = boardOutcome $ last bds
+gameOutcome (Game brds) = boardOutcome $ last brds
 
 -- \ Game functions
 
@@ -153,7 +154,7 @@ makeSuppliedMove brd ply
 
 -- replace square with new one & sort to preserve row-major order
 makeMove :: Board -> Location -> Board
-makeMove brd loc = Board  (sort $ square:[sq | sq <- squares brd, location sq /= loc])
+makeMove brd loc = Board  (sort $ square:[sqr | sqr <- squares brd, location sqr /= loc])
   where square = Square loc (whosMove brd) (whichMove brd)
 -- \ mechanics
 
@@ -185,11 +186,37 @@ unplayedIntersections brd =  filter (\i -> isUnplayedLocation brd (nexus i)) (by
 byIntersections :: Board -> [Intersection]
 byIntersections  brd = map (\loc -> Intersection loc (winningCombos loc brd)) definedLocations
 
+
+byIntersectionsMap :: Board -> DM.Map Location [[Square]]
+byIntersectionsMap  brd = DM.fromList $  map (\(Intersection loc sqrs) -> (loc,sqrs)) $ map (\loc -> Intersection loc (winningCombos loc brd)) definedLocations
+
+lookupIntersection :: Location -> (DM.Map Location [[Square]]) -> Maybe Intersection
+lookupIntersection loc itcMap = itcMaybe
+  where entryMaybe = DM.lookup loc itcMap
+        itcMaybe
+          | isJust entryMaybe = Just $ Intersection loc (fromJust entryMaybe)
+          | otherwise = Nothing
+
+-- intersections with supplied positions
+intersectionsFor :: Board -> [Location] -> [Intersection]
+intersectionsFor brd locs =  map (intersectionFor brd) locs
+
+-- intersection with supplied location
+intersectionFor :: Board -> Location -> Intersection
+intersectionFor brd loc = fromJust $ lookupIntersection loc imap
+  where imap = byIntersectionsMap brd
+
+intersectionsForCorners :: Board -> [Intersection]
+intersectionsForCorners brd = intersectionsFor brd corners
+
+
+
+
 unplayedSquares :: Board -> [Square]
-unplayedSquares brd = filter (\sq -> tic sq == N) (squares brd)
+unplayedSquares brd = filter (\sqr -> tic sqr == N) (squares brd)
 
 playedSquares :: Board -> [Square]
-playedSquares brd = sortByMove $ filter (\sq -> tic sq /= N) (squares brd)
+playedSquares brd = sortByMove $ filter (\sqr -> tic sqr /= N) (squares brd)
 
 playableRows :: Board -> [[Square]]
 playableRows brd = filter hasUnplayed (winningRows brd)
@@ -215,7 +242,7 @@ whoWon brd
 howWon :: Board -> (Player, [Location])
 howWon brd = (winner, map location sqForWinner)
   where winner = whoWon brd
-        sqForWinner = sortByMove $ [sq | sq <- (squares brd), tic sq == winner]
+        sqForWinner = sortByMove $ [sqr | sqr <- (squares brd), tic sqr == winner]
 
 -- if board is empty, assumes 'X' plays first ...
 whosMove :: Board -> Player
@@ -227,7 +254,7 @@ whosMove brd
 
 winner :: Board -> Player -> Bool
 winner brd ply =  or $ map (\w -> isInfixOf w ticked) winners
-  where ticked = map location (filter (\sq -> (tic sq) == ply) (squares brd))
+  where ticked = map location (filter (\sqr -> (tic sqr) == ply) (squares brd))
 
 -- given a location & board, return location's winning combos from board
 winningCombos :: Location -> Board -> [[Square]]
@@ -266,17 +293,17 @@ isBlocked brd = null $ filter (==0) $ map (countForPlayer (otherPlayer $ whosMov
 
 -- squares with supplied positions
 squaresFor :: Board -> [Location] -> [Square]
-squaresFor brd ps =  map (squareFor brd) ps
+squaresFor brd locs =  map (squareFor brd) locs
 
 -- square with supplied location
 squareFor :: Board -> Location -> Square
-squareFor brd loc =  head $ filter (\sq -> (location sq) == loc)(squares brd)
+squareFor brd loc =  head $ filter (\sqr -> (location sqr) == loc)(squares brd)
 
 squaresForCorners :: Board -> [Square]
 squaresForCorners brd = squaresFor brd corners
 
 cornerSquaresWithAdjCorners :: Board -> [(Square, [Square])]
-cornerSquaresWithAdjCorners brd =  [(sq, squaresFor brd (adjacentCorners (location sq))) | sq <- squaresForCorners brd]
+cornerSquaresWithAdjCorners brd =  [(sqr, squaresFor brd (adjacentCorners (location sqr))) | sqr <- squaresForCorners brd]
 
 -- \ Board functions
 
@@ -289,19 +316,19 @@ ticCountSumUseful :: Player -> [[Square]] -> Int
 ticCountSumUseful ply sqls = foldr (+) 0 (map (ticCount ply) (filter (isUnplayedFor (otherPlayer ply)) sqls))
 
 ticCount :: Player -> [Square] -> Int
-ticCount ply squares = length $ filter (\a -> tic a == ply) squares
+ticCount ply sqrs = length $ filter (\a -> tic a == ply) sqrs
 
 isUnplayedFor :: Player -> [Square] -> Bool
-isUnplayedFor ply squares = null $ filter (\sq -> tic sq == ply) squares
+isUnplayedFor ply sqrs = null $ filter (\sqr -> tic sqr == ply) sqrs
 
 hasUnplayed :: [Square] -> Bool
-hasUnplayed squares = not $ null $ filter (\sq -> tic sq == N) squares
+hasUnplayed sqrs = not $ null $ filter (\sqr -> tic sqr == N) sqrs
 
 isUnplayed :: Square -> Bool
-isUnplayed square = tic square == N
+isUnplayed sqr = tic sqr == N
 
 sortByMove :: [Square] -> [Square]
-sortByMove squares = sortBy byMove squares
+sortByMove sqrs = sortBy byMove sqrs
 
 byMove :: Square -> Square -> Ordering
 byMove firstSq secondSq = compare firstMove secondMove
@@ -477,7 +504,7 @@ removeDupes [] = []
 removeDupes (x:y:xs)
   | x == y =  removeDupes (y:xs)
   | otherwise = x:(removeDupes (y:xs))
-removeDupes s = s
+removeDupes str = str
 
 fullRange :: (Bounded a, Enum a) => [a]
 fullRange = [minBound..maxBound]
@@ -502,9 +529,9 @@ countForPlayer :: Player -> [(Player, Int)] -> Int
 countForPlayer ply tallys = snd $ head $ filter (\t -> fst t == ply) tallys
 
 countPlayersInEachRow :: [Square] -> [(Player, Int)]
-countPlayersInEachRow sqs = [(ply, (countPlayerInEachRow sqs ply)) | ply <- players ]
+countPlayersInEachRow sqrs = [(ply, (countPlayerInEachRow sqrs ply)) | ply <- players ]
 
 countPlayerInEachRow :: [Square] -> Player -> Int
-countPlayerInEachRow sqs ply = length $ filter (\sq -> tic sq == ply) sqs
+countPlayerInEachRow sqrs ply = length $ filter (\sqr -> tic sqr == ply) sqrs
 
 
