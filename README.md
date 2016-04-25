@@ -1,18 +1,26 @@
 # haskell-tutorial
 Me learning haskell, so bear this in mind if reviewing code.  Code will evolve as learning curve is scaled.
 
-## TicTac.hs
+## TicTac/*.hs
 Primitive Tic-Tac-Toe (Naughts & Crosses), playable from ghci prompt.
 
 There are four ways to play it.  All *play* functions share common behaviour:
 
-* Return the updated board - you must capture this to perform successive plays
+* Return the updated board - capture this to perform successive plays
 * Use `newBoard` to get an unplayed board
 * Board *location* range is a value from 1-9, expressed in row major order
 * If *location* supplied to function is out of range, computer will make next move
 * If *location* supplied is already marked, board remains unchanged
-* *strategy* is a `Board -> Board` function (see code for what a `Board` is
-* There are three pre-defined strategies: `smartMove`, `smarterMove`, and `cleverMove`. The `smartMove` strategy is easily defeated (so not *very* smart after all); the `smarterMove` strategy is also defeatable, but somewhat less easily. If the  `strategyChecker` (in TicTacTest.hs) is correctly implemented, it concludes that `cleverMove` is unbeatable, irrespective of who plays first. 
+* `Strategy` is a `Board -> Board` function
+* `Board` is a `Data.List` of `Square`
+* `Square` has: 
+	* `location` 
+	* `tic` (the `Player` who ticked it, `N` if unticked
+	* `move` an `Int` == move sequence in play (0 if unticked)
+* There are three pre-defined strategies: 
+	* `smartMove`: easily defeated (so not *very* smart after all)
+	* `smarterMove`: also defeatable, but somewhat less easily 
+	* `cleverMove`: probably undefeatable (there's a `strategyChecker` in `TicTac.Test` which says it is, but I've not *proved* the checker to be complete) 
 
 
 * Of course *strategy* is used only when the computer is playing
