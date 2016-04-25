@@ -1,4 +1,4 @@
-module MyData where
+module Misc.Data where
 -- a collection of silly functions to practice haskell syntax ...
 -- language features progressively employed as learned
 -- sometimes a function is re-implemented accordingly

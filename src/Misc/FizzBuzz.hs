@@ -1,4 +1,4 @@
-module FizzBuzz where
+module Misc.FizzBuzz where
 
 fizzbuzz :: Int -> String
 fizzbuzz x

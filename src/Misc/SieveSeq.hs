@@ -1,4 +1,4 @@
-module SieveSeq where
+module Misc.SieveSeq where
 
 import Sieve
 import Data.Sequence

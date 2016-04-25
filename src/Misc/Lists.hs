@@ -1,4 +1,4 @@
-module MyLists where
+module Misc.Lists where
 
 -- 1st duff attempt, does it but backwards
 initSegsRev :: [a] -> [[a]]

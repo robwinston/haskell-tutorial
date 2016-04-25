@@ -1,4 +1,5 @@
-module Sieve where
+module Misc.Sieve where
+
 sieve :: (Integral a) => a -> [a]
 sieve n = sieveToUntil n (sieveSize n)
 

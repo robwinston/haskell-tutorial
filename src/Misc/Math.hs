@@ -1,4 +1,4 @@
-module MyMath where
+module Misc.Math where
 
 factorial :: Integer -> Integer
 factorial n

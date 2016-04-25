@@ -1,4 +1,4 @@
-module MyGraph where
+module Misc.Graph where
 
 import Data.List (nub)
 

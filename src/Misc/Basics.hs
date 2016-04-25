@@ -1,4 +1,4 @@
-module Basics where
+module Misc.Basics where
 
 -- re-invent take
 mytake :: Int -> [a] -> [a]

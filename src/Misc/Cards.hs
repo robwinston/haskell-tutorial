@@ -1,4 +1,4 @@
-module Cards where
+module Misc.Cards where
 
 -- https://rosettacode.org/wiki/Playing_cards#Haskell
 -- model for own work
