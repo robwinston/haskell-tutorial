@@ -39,11 +39,12 @@ instance Show Square
 
 data Intersection = Intersection  {
                       nexus :: Location,
-                      rows :: [[Square]]
+                      rows :: [[Square]],
+                      tallys :: [[(Player, Int)]]
                     }
                     deriving (Eq)
 instance Show Intersection
-  where show (Intersection n rs) = "(" ++ show n ++ "," ++ show rs ++  ")\n"
+  where show (Intersection l rws tys) = "(" ++ show l ++ "," ++ show rws ++  show tys ++ ")\n"
 
 data Board = Board  {
                squares :: [Square] }
@@ -184,7 +185,7 @@ unplayedIntersections :: Board -> [Intersection]
 unplayedIntersections brd =  filter (\i -> isUnplayedLocation brd (nexus i)) (byIntersections brd)
 
 byIntersections :: Board -> [Intersection]
-byIntersections  brd = map (\loc -> Intersection loc (winningCombos loc brd)) definedLocations
+byIntersections  brd = map (\loc -> buildIntersection brd loc) definedLocations
 
 byTallys :: Board -> [(Location, [[Tally]])]
 byTallys brd = map asTally (byIntersections brd)
@@ -193,14 +194,18 @@ allTallys brd = concat $ [concat $ tys | (l,tys) <- byTallys brd]
 allWinningTallys brd = nub $ filter (\(p,t) -> t == 3) $ allTallys brd
 allWinningTallysFor brd ply = filter (\(p,t) -> p == ply) $ allWinningTallys brd
 
-byIntersectionsMap :: Board -> DM.Map Location [[Square]]
-byIntersectionsMap  brd = DM.fromList $  map (\(Intersection loc sqrs) -> (loc,sqrs)) $ map (\loc -> Intersection loc (winningCombos loc brd)) definedLocations
+byIntersectionsMap :: Board -> DM.Map Location ([[Square]], [[Tally]])
+byIntersectionsMap  brd = DM.fromList $  map (\(Intersection loc sqrs tlys) -> (loc,(sqrs, tlys))) $ map (\loc -> buildIntersection brd loc) definedLocations
 
-lookupIntersection :: Location -> (DM.Map Location [[Square]]) -> Maybe Intersection
+buildIntersection brd loc = Intersection loc rows tallys
+  where rows = winningCombos loc brd
+        tallys = map countPlayersInEachRow rows
+
+lookupIntersection :: Location -> (DM.Map Location ([[Square]],[[Tally]])) -> Maybe Intersection
 lookupIntersection loc itcMap = itcMaybe
   where entryMaybe = DM.lookup loc itcMap
         itcMaybe
-          | isJust entryMaybe = Just $ Intersection loc (fromJust entryMaybe)
+          | isJust entryMaybe = Just $ Intersection loc (fst $ fromJust entryMaybe) (snd $ fromJust entryMaybe)
           | otherwise = Nothing
 
 -- intersections with supplied positions
@@ -232,7 +237,7 @@ winningRows brd = map (squaresFor brd) winners
 
 hasEmptyRow :: Board -> Location -> Bool
 hasEmptyRow brd loc = hasUntouchedRow tToCheck
-    where  iToCheck = fromJust $ (find (\(Intersection li rsi) -> li == loc) (byIntersections brd))
+    where  iToCheck = fromJust $ (find (\(Intersection li _ _) -> li == loc) (byIntersections brd))
            tToCheck = asTally iToCheck
 
 whoWon :: Board -> Player
@@ -471,7 +476,7 @@ itsRank loc
 -- Tally:        ((M,L),[[(N,3),(X,0),(O,0)],[(N,2),(X,1),(O,0)]])
 
 asTally :: Intersection -> (Location, [[Tally]])
-asTally (Intersection loc sqss) = (loc, map countPlayersInEachRow sqss)
+asTally (Intersection loc sqss tlys) = (loc, tlys)
 
 hasUntouchedRow :: (Location, [[Tally]]) -> Bool
 hasUntouchedRow (loc, tyss) = not $ null $ filter (\(py,ct) -> py == N && ct == 3) (concat tyss)

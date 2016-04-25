@@ -93,7 +93,7 @@ oppositeOccupied brd = [loc | loc <- unplayedLocations brd, (elem loc corners)  
   where oply = otherPlayer $ whosMove brd
 
 isUnoccupied :: [Location] -> Board -> [Location]
-isUnoccupied locs brd  = [loc | (Intersection loc r) <- unplayedIntersections brd, elem loc locs]
+isUnoccupied locs brd  = [loc | (Intersection loc r _) <- unplayedIntersections brd, elem loc locs]
 
 canForce :: Player -> Board -> [Location]
 canForce ply brd =
