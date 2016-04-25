@@ -1,4 +1,4 @@
-module TicTacCore where
+module TicTac.Common where
 
 import Data.List
 import Data.Maybe
@@ -229,9 +229,6 @@ playableRows brd = filter hasUnplayed (winningRows brd)
 
 winningRows :: Board -> [[Square]]
 winningRows brd = map (squaresFor brd) winners
-
-isUnoccupied :: [Location] -> Board -> [Location]
-isUnoccupied locs brd  = [loc | (Intersection loc r) <- unplayedIntersections brd, elem loc locs]
 
 hasEmptyRow :: Board -> Location -> Bool
 hasEmptyRow brd loc = hasUntouchedRow tToCheck

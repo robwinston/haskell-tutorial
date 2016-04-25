@@ -1,8 +1,8 @@
-module TicTac.TicTacTest where
+module TicTac.Test where
 
-import TicTac
-import TicTacAltStrategy
-import TicTacCore
+import TicTac.Play
+import TicTac.Simple
+import TicTac.Common
 
 import Data.List
 import Data.Maybe
@@ -68,64 +68,6 @@ autoNextMove  _ [] = []
 autoNextMove sty (brd:bs)
   | finished brd =  (brd:bs)
   | otherwise = sty brd : (brd:bs)
-
-
--- interactive play
-playUsing :: Strategy -> Board -> Board
-playUsing  sty brd
-  | finished brd = brd
-  | otherwise = sty brd
-
-playARoundUsing :: Strategy -> Board -> Int -> Board
-playARoundUsing sty brd i
- | aWinner brd = brd
- | aWinner nextBoard = nextBoard
- | otherwise = sty nextBoard
- where ml = maybeLocation i
-       nextBoard = firstMove brd ml
-       firstMove brd ml
-         | isNothing ml = sty brd
-         | otherwise = makeSuppliedMove  brd (fromJust ml)
-
--- for all of the auto-play strategies accepting a starting board -
--- if the supplied board is in an invalid state, results are unpredictable
-
--- auto-play from all possible starting positions, return list of winner for each game
-autoPlayAllUsing :: Strategy -> [Player]
-autoPlayAllUsing strategy = map whoWon $ map (autoPlayFromUsing strategy) definedLocations
-
--- auto-play a single game, starting with supplied location, using supplied strategy
-autoPlayFromUsing :: Strategy -> Location -> Board
-autoPlayFromUsing strategy start = autoPlayUsing strategy (makeMove brd start)
-  where brd = newBoard
-        ply = whosMove brd
-
--- auto-play a single game, starting with supplied board (which may be partially played), using supplied strategy
-autoPlayUsing :: Strategy -> Board -> Board
-autoPlayUsing strategy brd
-  | aWinner nextBoard = nextBoard
-  | not $ hasUnplayed (squares nextBoard) = nextBoard
-  | otherwise = autoPlayUsing strategy nextBoard
-  where nextBoard = strategy brd
-
--- auto-play a single game, starting with supplied location & strategy
--- prepend board to list after each move
-autoPlayFromUsingTrack :: Strategy -> Location -> [Board]
-autoPlayFromUsingTrack strategy start = autoPlayUsingTrack strategy ([makeMove brd start])
-  where brd = newBoard
-        ply = whosMove brd
-
--- auto-play a single game, starting with "head" of supplied boards, using supplied strategy
--- prepend board to list after each move
-autoPlayUsingTrack :: Strategy -> [Board] -> [Board]
-autoPlayUsingTrack strategy [] =  autoPlayUsingTrack strategy [newBoard]
-autoPlayUsingTrack strategy bds
-  | aWinner nextBoard = nextBoard : bds
-  | not $ hasUnplayed (squares nextBoard) = nextBoard : bds
-  | otherwise = autoPlayUsingTrack strategy (nextBoard : bds)
-  where nextBoard = strategy $ head bds
-
--- \ game play
 
 
 -- / programmed play ... useful for testing

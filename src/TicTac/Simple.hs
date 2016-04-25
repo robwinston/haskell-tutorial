@@ -1,6 +1,6 @@
-module TicTacAltStrategy where
+module TicTac.Simple where
 
-import TicTacCore
+import TicTac.Common
 
 import Data.List
 import Data.Maybe
