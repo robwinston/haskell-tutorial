@@ -116,7 +116,7 @@ data Score =  Unplayable | Blocked | Playable | MaybeOther | MaybeMe | ForkableO
 -- / Game functions
 
 boardsByMove :: Game -> [(Int, Board)]
-boardsByMove g = zip [1..] (boards g)
+boardsByMove g = zip [0..] (boards g)
 
 boardForMove :: Game -> Int -> Maybe Board
 boardForMove g m

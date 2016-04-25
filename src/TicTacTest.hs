@@ -23,25 +23,33 @@ allPossibleGames sty ply brd = map (aGameFrom) (playAllPossibleRounds sty ply [[
 playAllPossibleRounds :: Strategy -> Player -> [[Board]] -> [[Board]]
 playAllPossibleRounds sty  ply [] = playAllPossibleRounds sty ply [[newBoard]]
 playAllPossibleRounds sty ply bdss
-  | (length $ filter (\bds -> not $ finished $ head bds) bdss) == 0 = bdss
+  | null $ filter (\bds -> not $ finished $ head bds) bdss = bdss
   | otherwise = playAllPossibleRounds sty ply (concat $ map (\bds -> playPossibleRounds sty ply bds) bdss)
 
 -- for the head of a given board sequence, prepend all of the next possible rounds
 -- where a round is
 --  1) a specified move - representing a "human"
 --  2) the computer's response (using specified strategy)
+-- Player param says which player is the human ...
 -- a given play is short-cicuited when a winner/draw is reached
 playPossibleRounds :: Strategy -> Player -> [Board] -> [[Board]]
-playPossibleRounds sty ply bseq = (map (autoNextMove sty) $ filter (\x -> not $ finished $ head x) bseqn)  ++ filter (\x -> finished $ head x)  bseqn
-  where bseqn = playPossibles bseq
+playPossibleRounds sty ply bseq
+  | finished $ head bseq = [bseq]
+  | plyToPlay == N = [bseq]
+  | plyToPlay == ply = map (autoNextMove sty) bseqn
+  | otherwise = concat $ map playPossibles bseqn
+  where plyToPlay = whosMove $ head bseq
+        bseqn
+          | plyToPlay == ply = playPossibles bseq
+          | otherwise = [autoNextMove sty bseq]
 
 -- for the head of a given board sequence, prepend all of the n possible moves, yielding n board sequences
 playPossibles :: [Board] -> [[Board]]
-playPossibles (bb:bs)
-  | finished bb = [bb:bs]
-  | otherwise = map (\ba -> ba:(bb:bs)) nextMoves
-  where upl = map location $ filter isUnplayed $ squares bb
-        nextMoves = map (makeSuppliedMove bb) upl
+playPossibles (brd:bs)
+  | finished brd = [brd:bs]
+  | otherwise = map (\ba -> ba:(brd:bs)) nextMoves
+  where upl = map location $ filter isUnplayed $ squares brd
+        nextMoves = map (makeSuppliedMove brd) upl
 
 -- for a list of boards, prepend next move using strategy
 autoNextMove :: Strategy -> [Board] -> [Board]
@@ -50,6 +58,8 @@ autoNextMove sty (brd:bs)
   | finished brd =  (brd:bs)
   | otherwise = sty brd : (brd:bs)
 
+
+-- interactive play
 playUsing :: Strategy -> Board -> Board
 playUsing  sty brd
   | finished brd = brd
