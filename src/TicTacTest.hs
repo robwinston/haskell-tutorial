@@ -1,6 +1,7 @@
 module TicTac.TicTacTest where
 
 import TicTac
+import TicTacAltStrategy
 import TicTacCore
 
 import Data.List
@@ -9,6 +10,16 @@ import Data.Ord
 import  qualified Data.Set as DS
 import  qualified Data.Map as DM
 
+{-
+25/04/16 54d5235
+ghci> map (strategyChecker cleverMove) [X,O]
+[[(X,0),(O,370),(N,87)],[(X,86),(O,0),(N,6)]]
+ghci> map (strategyChecker smarterMove) [X,O]
+[[(X,18),(O,346),(N,261)],[(X,132),(O,0),(N,8)]]
+ghci> map (strategyChecker smartMove) [X,O]
+[[(X,94),(O,376),(N,211)],[(X,68),(O,6),(N,8)]]
+ghci>
+-}
 
 strategyChecker :: Strategy -> Player -> [(Player, Int)]
 strategyChecker sty ply =  map (\py -> (py,(winnersFor outcomes py))) [X,O,N]
