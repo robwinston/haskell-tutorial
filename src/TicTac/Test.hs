@@ -98,6 +98,15 @@ moveThrough (ls, brd)
 
 -- \ programmed play
 
+
+--given a row major list of players, generate a "phony" (i.e. no move #'s) board for testing
+--  1) cycle thru supplied player list to ensure there's enough to generate a board
+--  2) invalid list will generate an invalid board
+--  3) empty list employs the players function to generate one
+boardFor :: [Player] -> Board
+boardFor [] = Board [Square (snd pl) (fst pl)  0 | pl <- zip (players ++ (reverse players) ++ players) definedLocations ]
+boardFor plys = Board [Square (snd pl) (fst pl)  0 | pl <- zip (cycle plys) definedLocations ]
+
 -- test data retrieval ... for ghci devel
 apg = allPossibleGames cleverMove O newBoard
 apo = map gameOutcome apg

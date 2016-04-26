@@ -10,12 +10,13 @@ import  qualified Data.Map as DM
 -- / Data types
 
 data Player = N | X | O
-  deriving (Eq, Show, Ord, Bounded, Enum)
+  deriving (Eq, Show, Ord, Bounded, Enum, Read)
+
 data Row = T | M | B
-  deriving (Eq, Show, Ord, Bounded, Enum)
+  deriving (Eq, Show, Ord, Bounded, Enum, Read)
 
 data Column = L | C | R
-  deriving (Eq, Show, Ord, Bounded, Enum)
+  deriving (Eq, Show, Ord, Bounded, Enum, Read)
 
 data Rank = Edge | Corner | Nexus
   deriving (Eq, Ord, Show, Bounded, Enum)
@@ -87,8 +88,10 @@ showGame ((Game brds)) = (gameString "Game sequence: \n" brds) ++ "Moves: " ++ m
         gameString :: String -> [Board] -> String
         gameString str [] = str ++ "No boards!"
         gameString str (brd:brds)
-          | null brds = str ++ show brd ++ "\n" ++ show (movesCount brd) ++ " moves made\n"
+          | null brds = str ++ show brd ++ "\n" ++ show (movesCount brd) ++ " move" ++ plural ++ " made\n"
           | otherwise = gameString (str ++ show brd ++ "\n") brds
+          where plural = if (movesCount brd) /= 1 then "s" else ""
+
 instance Ord Game
   where compare g1@(Game bds1) g2@(Game sqs2) = compare (gameOutcome g1) (gameOutcome g2)
 
@@ -220,9 +223,6 @@ intersectionFor brd loc = fromJust $ lookupIntersection loc imap
 intersectionsForCorners :: Board -> [Intersection]
 intersectionsForCorners brd = intersectionsFor brd corners
 
-
-
-
 unplayedSquares :: Board -> [Square]
 unplayedSquares brd = filter (\sqr -> tic sqr == N) (squares brd)
 
@@ -287,14 +287,6 @@ diffBoards b1 b2 = diffSquares (squares b1) (squares b2)
 newBoard :: Board
 newBoard = Board (map (\i -> Square i N 0) definedLocations)
 
-
---given a row major list of players, generate a "phony" (i.e. no move #'s) board for testing
---  1) cycle thru supplied player list to ensure there's enough to generate a board
---  2) invalid list will generate an invalid board
---  3) empty list employs the players function to generate one
-boardFor :: [Player] -> Board
-boardFor [] = Board [Square (snd pl) (fst pl)  0 | pl <- zip (players ++ (reverse players) ++ players) definedLocations ]
-boardFor plys = Board [Square (snd pl) (fst pl)  0 | pl <- zip (cycle plys) definedLocations ]
 
 -- opponent has a tic in all rows
 isBlocked :: Board -> Bool
@@ -493,6 +485,9 @@ otherPlayer ply
 
 players :: [Player]
 players = fullRange
+
+actualPlayers :: [Player]
+actualPlayers = [X,O]
 
 -- \ Player functions
 
