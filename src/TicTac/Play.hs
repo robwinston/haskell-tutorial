@@ -109,6 +109,7 @@ playUsing  sty brd
   | finished brd = brd
   | otherwise = sty brd
 
+-- TODO refactor these variants share common logic
 playARoundUsing :: Strategy -> Board -> Int -> Board
 playARoundUsing sty brd i
  | aWinner brd = brd
@@ -119,6 +120,13 @@ playARoundUsing sty brd i
        firstMove brd ml
          | isNothing ml = sty brd
          | otherwise = makeSuppliedMove  brd (fromJust ml)
+
+playARoundUsingL :: Strategy -> Board -> Location -> Board
+playARoundUsingL sty brd ml
+ | finished brd = brd
+ | finished nextBoard = nextBoard
+ | otherwise = sty nextBoard
+ where nextBoard = makeSuppliedMove brd ml
 
 -- for all of the auto-play strategies accepting a starting board -
 -- if the supplied board is in an invalid state, results are unpredictable

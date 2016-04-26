@@ -14,24 +14,32 @@ main = do
            then
              do
               putStrLn ("Playing as: " ++ show py)
-              brds <- playGameAs py
-              putStrLn ((show $ aGameFrom brds) ++ "\nNice playing you")
+              game <- playGameAs py
+              putStrLn ((show $ game) ++ "\nNice playing you")
            else
              do
               putStrLn "TTFN!"
 
-playGameAs :: Player -> IO [Board]
+playGameAs :: Player -> IO Game
 playGameAs ply
   | ply == X = do
-                brd <- interactivePlay [newBoard]
-                return brd
+                brds <- interactivePlay [newBoard]
+                return $ aGameFrom brds
   | ply == O = do
-                brd <- interactivePlay $ (cleverMove newBoard) : [newBoard]
-                return brd
+                brds <- interactivePlay $ (cleverMove newBoard) : [newBoard]
+                return $ aGameFrom brds
 
 
 interactivePlay :: [Board] -> IO [Board]
-interactivePlay brds = return brds
+interactivePlay [] = return []
+interactivePlay (brd:brds)
+  | finished brd = return (brd:brds)
+  | otherwise = do
+    putStr $ show brd
+    mv <- getMove brd
+    if isNothing mv
+      then return (brd:brds)
+      else interactivePlay ((playARoundUsingL cleverMove brd (fromJust mv)) : (brd:brds))
 
 getPlayer :: IO Player
 getPlayer = go ("Who to play as? " ++ (show players)  ++ " -- N to quit")
