@@ -8,17 +8,27 @@ import Text.Read
 import Data.Maybe
 import Data.Char
 
-main = do
-         py <- getPlayer
-         if (elem py actualPlayers)
-           then
-             do
-              putStrLn ("Playing as: " ++ show py)
-              game <- playGameAs py
-              putStrLn ((show $ game) ++ "\nNice playing you")
-           else
-             do
-              putStrLn "TTFN!"
+main =
+  do
+    games <- playGames []
+    putStrLn ("Played " ++ (show $ length games) ++ " games")
+
+
+playGames :: [Game] -> IO [Game]
+playGames games =
+  do
+    py <- getPlayer
+    if (elem py actualPlayers)
+      then
+        do
+         putStrLn ("Playing as: " ++ show py)
+         game <- playGameAs py
+         putStr (show $ last $ boards game)
+         playGames (game : games)
+      else
+        do
+         return games
+
 
 playGameAs :: Player -> IO Game
 playGameAs ply
@@ -28,6 +38,8 @@ playGameAs ply
   | ply == O = do
                 brds <- interactivePlay $ (cleverMove newBoard) : [newBoard]
                 return $ aGameFrom brds
+
+
 
 
 interactivePlay :: [Board] -> IO [Board]
