@@ -12,6 +12,9 @@ import  qualified Data.Map as DM
 data Player = N | X | O
   deriving (Eq, Show, Ord, Bounded, Enum, Read)
 
+data Role = Human | Computer
+  deriving (Eq, Show, Ord, Bounded, Enum, Read)
+
 data Row = T | M | B
   deriving (Eq, Show, Ord, Bounded, Enum, Read)
 
@@ -71,6 +74,13 @@ instance Show Board
                           justTic :: Square -> String
                           justTic sqr  = "|" ++ show (tic sqr) ++ "|"
 
+data GameInfo = GameInfo {
+            game :: Game,
+            playedBy :: [(Player, Role)]
+        }
+
+instance Show GameInfo
+  where show (GameInfo gme plyBy) = showGameInfo (GameInfo gme plyBy)
 
 data Game = Game {
          boards :: [Board]
@@ -80,17 +90,6 @@ data Game = Game {
 instance Show Game
   where show (Game brds) = showGame (Game brds)
 
-showGame :: Game -> String
-showGame ((Game brds)) = (gameString "Game sequence: \n" brds) ++ "Moves: " ++ movesMade ++ "\n"
-  where movesMade
-          | length brds < 2 = "none"
-          | otherwise = show $ movesList (head brds) (last brds)
-        gameString :: String -> [Board] -> String
-        gameString str [] = str ++ "No boards!"
-        gameString str (brd:brds)
-          | null brds = str ++ show brd ++ "\n" ++ show (movesCount brd) ++ " move" ++ plural ++ " made\n"
-          | otherwise = gameString (str ++ show brd ++ "\n") brds
-          where plural = if (movesCount brd) /= 1 then "s" else ""
 
 instance Ord Game
   where compare g1@(Game bds1) g2@(Game sqs2) = compare (gameOutcome g1) (gameOutcome g2)
@@ -117,6 +116,27 @@ data Score =  Unplayable | Blocked | Playable | MaybeOther | MaybeMe | ForkableO
 
 -- \ Data types
 
+-- / GameInfo functions
+
+gamesSummary :: [GameInfo] -> [String]
+gamesSummary [] = []
+gamesSummary (gi:gis) =
+  show gi : gamesSummary gis
+
+showGameInfo :: GameInfo -> String
+showGameInfo gi
+  | player outc == N = "Draw in " ++ (show $ moves outc) ++ " moves"
+  | otherwise = (show $ roleForPlayer (player outc) (playedBy gi)) ++ " (" ++  (show $ player outc) ++ ") in " ++ (show $ moves outc) ++ " moves"
+  where outc = gameOutcome $ game gi
+
+
+roleForPlayer :: Player -> [(Player, Role)] -> Role
+roleForPlayer ply roles = head $ [r | (p,r) <- roles, p == ply]
+
+
+-- \ GameInfo functions
+
+
 -- / Game functions
 
 boardsByMove :: Game -> [(Int, Board)]
@@ -132,7 +152,10 @@ gamesFor :: [Game] -> Player -> [Game]
 gamesFor games py = [g | g@(Game brds) <- games, (player $ gameOutcome g) == py]
 
 aGameFrom :: [Board] -> Game
-aGameFrom brds = Game (sort brds)  -- Board's ORD compares how many moves have been made
+aGameFrom brds = Game (sort brds)  -- Board's ORD compares how many moves have been made, so this puts boards in play sequence
+
+aGameInfoFrom :: Game -> Player -> GameInfo
+aGameInfoFrom game ply = GameInfo game [(ply, Human), (otherPlayer ply, Computer)]
 
 asGame :: Board -> Game
 asGame brd = Game [newBoard, brd]
@@ -143,6 +166,18 @@ gamePlay (Game brds) = (whoWon $ last brds, movesList (head brds) (last brds))
 -- for a game - return winner (N == Draw) & # of moves
 gameOutcome :: Game -> Outcome
 gameOutcome (Game brds) = boardOutcome $ last brds
+
+showGame :: Game -> String
+showGame ((Game brds)) = (gameString "Game sequence: \n" brds) ++ "Moves: " ++ movesMade ++ "\n"
+  where movesMade
+          | length brds < 2 = "none"
+          | otherwise = show $ movesList (head brds) (last brds)
+        gameString :: String -> [Board] -> String
+        gameString str [] = str ++ "No boards!"
+        gameString str (brd:brds)
+          | null brds = str ++ show brd ++ "\n" ++ show (movesCount brd) ++ " move" ++ plural ++ " made\n"
+          | otherwise = gameString (str ++ show brd ++ "\n") brds
+          where plural = if (movesCount brd) /= 1 then "s" else ""
 
 -- \ Game functions
 
@@ -488,6 +523,7 @@ players = fullRange
 
 actualPlayers :: [Player]
 actualPlayers = [X,O]
+
 
 -- \ Player functions
 

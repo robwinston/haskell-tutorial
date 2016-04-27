@@ -11,10 +11,10 @@ import Data.Char
 main =
   do
     games <- playGames []
-    putStrLn ("Played " ++ (show $ length games) ++ " games")
+    displaySummary $ reverse games
 
 
-playGames :: [Game] -> IO [Game]
+playGames :: [GameInfo] -> IO [GameInfo]
 playGames games =
   do
     py <- getPlayer
@@ -22,22 +22,33 @@ playGames games =
       then
         do
          putStrLn ("Playing as: " ++ show py)
-         game <- playGameAs py
-         putStr (show $ last $ boards game)
-         playGames (game : games)
+         gameInfo <- playGameAs py
+         putStr (show $ last $ boards $ game gameInfo)
+         playGames (gameInfo : games)
       else
         do
          return games
 
+displaySummary :: [GameInfo]  -> IO ()
+displaySummary gifs =
+  do
+    if gss == []
+      then putStrLn "No games played"
+      else putStrLn summary
+      where gss = gamesSummary gifs
+            summary = foldr (++) "" (map (\(i,gs) -> "\n" ++ show i ++ ": " ++ gs) (zip [1..] gss))
 
-playGameAs :: Player -> IO Game
+
+
+
+playGameAs :: Player -> IO GameInfo
 playGameAs ply
   | ply == X = do
                 brds <- interactivePlay [newBoard]
-                return $ aGameFrom brds
+                return $ aGameInfoFrom (aGameFrom brds) ply
   | ply == O = do
                 brds <- interactivePlay $ (cleverMove newBoard) : [newBoard]
-                return $ aGameFrom brds
+                return $ aGameInfoFrom (aGameFrom brds) ply
 
 
 
