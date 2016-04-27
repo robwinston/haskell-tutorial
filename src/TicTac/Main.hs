@@ -23,7 +23,7 @@ playGames games =
         do
          putStrLn ("Playing as: " ++ show py)
          gameInfo <- playGameAs py
-         putStr (show $ last $ boards $ game gameInfo)
+         print . last . boards $ game gameInfo
          playGames (gameInfo : games)
       else
         do
