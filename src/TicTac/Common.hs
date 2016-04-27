@@ -57,22 +57,7 @@ instance Ord Board
   where compare b1@(Board sqs1) b2@(Board sqs2)  = compare (movesCount b1) (movesCount b2)
 
 instance Show Board
-  where show brd@(Board sqrs) = "\n" ++ (fst (squaresToGrid ("", sqrs))) ++ (boardState brd)
-            where boardState :: Board -> String
-                  boardState brd
-                    | aWinner brd = mvs ++ (show $ whoWon brd)  ++ " wins!\n"
-                    | whosMove brd == N = mvs ++ "It's a draw\n"
-                    | otherwise = mvs ++ (show $ whosMove brd) ++ " to move" ++ blocked ++ "\n"
-                    where mvs = (show $ movesCount brd) ++ ": "
-                          blocked = if isBlocked brd then " - blocked" else ""
-
-                  squaresToGrid :: (String , [Square]) -> (String, [Square])
-                  squaresToGrid (gridString, squares)
-                    | null squares = (gridString, squares)
-                    | otherwise =  squaresToGrid ((gridString ++ (removeDupes (concat (map justTic row))) ++ "\n"), whatsLeft)
-                    where (row, whatsLeft) = splitAt 3 squares
-                          justTic :: Square -> String
-                          justTic sqr  = "|" ++ show (tic sqr) ++ "|"
+  where show brd@(Board sqrs) = showBoard brd
 
 data GameInfo = GameInfo {
             game :: Game,
@@ -80,7 +65,7 @@ data GameInfo = GameInfo {
         }
 
 instance Show GameInfo
-  where show (GameInfo gme plyBy) = showGameInfo (GameInfo gme plyBy)
+  where show gi@(GameInfo gme plyBy) = showGameInfo gi
 
 data Game = Game {
          boards :: [Board]
@@ -182,6 +167,23 @@ showGame ((Game brds)) = (gameString "Game sequence: \n" brds) ++ "Moves: " ++ m
 -- \ Game functions
 
 -- / Board functions
+
+showBoard brd@(Board sqrs) = "\n" ++ (fst (squaresToGrid ("", sqrs))) ++ (boardState brd)
+  where boardState :: Board -> String
+        boardState brd
+          | aWinner brd = mvs ++ (show $ whoWon brd)  ++ " wins!\n"
+          | whosMove brd == N = mvs ++ "It's a draw\n"
+          | otherwise = mvs ++ (show $ whosMove brd) ++ " to move" ++ blocked ++ "\n"
+          where mvs = (show $ movesCount brd) ++ ": "
+                blocked = if isBlocked brd then " - blocked" else ""
+        squaresToGrid :: (String , [Square]) -> (String, [Square])
+        squaresToGrid (gridString, squares)
+          | null squares = (gridString, squares)
+          | otherwise =  squaresToGrid ((gridString ++ (removeDupes (concat (map justTic row))) ++ "\n"), whatsLeft)
+          where (row, whatsLeft) = splitAt 3 squares
+                justTic :: Square -> String
+                justTic sqr  = "|" ++ show (tic sqr) ++ "|"
+
 
 -- / mechanics
 -- given a location, tic for next player
