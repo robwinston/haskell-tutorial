@@ -33,18 +33,20 @@ ghci>
 
 cleverMove :: Board -> Board
 cleverMove brd
-  | isJust whereToMove = makeMove brd (head $ fromJust whereToMove)
+  | isJust whereToMove = makeMove brd $ fromJust whereToMove
   | otherwise = brd
-  where ply = whosMove brd
-        opy = otherPlayer ply
-        tests :: [(Board -> [Location])]
-        tests = [openingMove, canWin ply, canWin opy, canFork ply, blocking, isUnoccupied  centre, oppositeOccupied, isUnoccupied corners, isUnoccupied middles, unplayedLocations]
-        whereToMove = find (\mvs -> length mvs > 0)  (map (\f -> f brd) tests)
+  where whereToMove = getFirst $ mconcat $ map (\f -> f brd) $ possibleMoves $ whosMove brd
+
+possibleMoves :: Player -> [(Board -> Move)]
+possibleMoves ply = openingMove : map (\f -> asMove . f) (possibleLocations ply)
+
+possibleLocations :: Player -> [(Board -> [Location])]
+possibleLocations ply = [canWin ply, canWin $ otherPlayer ply, canFork ply, blocking, isUnoccupied  centre, oppositeOccupied, isUnoccupied corners, isUnoccupied middles, unplayedLocations]
 
 
-openingMove :: Board -> [Location]
+openingMove :: Board -> Move
 openingMove brd
-  | movesCount brd == 0 = corners
+  | movesCount brd == 0 = asMove corners
 
   -- silly special case ... for early in the game when computer plays first
   -- 2nd time computer plays it's too early to "block" if the centre is still open
@@ -57,8 +59,8 @@ openingMove brd
   [[(X,0),(O,370),(N,87)],[(X,86),(O,0),(N,6)]]
 
   -}
-  | movesCount brd == 2 && (not $ null $ isUnoccupied centre brd) = centre
-  | otherwise = []
+  | movesCount brd == 2 && (not $ null $ isUnoccupied centre brd) = asMove centre
+  | otherwise = First Nothing
 
 canWin :: Player -> Board -> [Location]
 canWin ply brd  =

@@ -26,7 +26,15 @@ data Rank = Edge | Corner | Nexus
 
 
 type Location = (Row, Column)
-type Move = Int
+
+type Move = First Location
+
+asMove :: [Location] -> First Location
+asMove [] = First Nothing
+asMove (l:ls) = First $ Just l
+
+
+type MoveNumber = Int
 type Strategy = (Board -> Board)
 
 -- represents tics for a player
@@ -35,7 +43,7 @@ type Tally = (Player,Int)
 data Square = Square {
                  location :: Location,
                  tic :: Player,
-                 move :: Move }
+                 move :: MoveNumber }
               deriving (Eq, Ord)
 instance Show Square
   where show (Square loc ply m) = "|" ++ show loc ++ ":" ++ show ply ++ ":" ++ show m ++ "|"
@@ -44,13 +52,13 @@ instance Show Square
 data Intersection = Intersection  {
                       nexus :: Location,
                       rows :: [[Square]],
-                      tallys :: [[(Player, Int)]]
+                      tallys :: [[Tally]]
                     }
                     deriving (Eq)
 instance Show Intersection
   where show (Intersection l rws tys) = "(" ++ show l ++ "," ++ show rws ++  show tys ++ ")\n"
 
-data Board = Board  {
+newtype Board = Board  {
                squares :: [Square] }
              deriving (Eq)
 instance Ord Board
@@ -202,7 +210,7 @@ makeMove brd loc = Board  (sort $ square:[sqr | sqr <- squares brd, location sqr
 movesCount :: Board -> Int
 movesCount brd = 9 - length (unplayedSquares brd)
 
-whichMove :: Board -> Move
+whichMove :: Board -> MoveNumber
 whichMove brd = 10 - (length $ unplayedSquares brd)
 
 movesList :: Board -> Board -> [Square]
@@ -560,6 +568,14 @@ interl :: a -> [a] -> [[a]]
 interl a [] = [[a]]
 interl a (x: xs) =
   (a:x:xs) : map (x:) (interl a xs)
+
+newtype First a = First { getFirst :: Maybe a }
+    deriving (Eq, Ord, Read, Show)
+instance Monoid (First a) where
+    mempty = First Nothing
+    First (Just x) `mappend` _ = First (Just x)
+    First Nothing `mappend` x = x
+
 
 -- \ util
 
