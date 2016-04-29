@@ -23,7 +23,6 @@ playGames games =
         do
          putStrLn ("Playing as: " ++ show py)
          gameInfo <- playGameAs py
-         print . last . boards $ game gameInfo
          playGames (gameInfo : games)
       else
         do
@@ -56,35 +55,37 @@ playGameAs ply
 interactivePlay :: [Board] -> IO [Board]
 interactivePlay [] = return []
 interactivePlay (brd:brds)
-  | finished brd = return (brd:brds)
+  | finished brd = do
+      putStr $ show brd
+      return (brd:brds)
   | otherwise = do
-    putStr $ show brd
-    mv <- getMove brd
-    if isNothing mv
-      then return (brd:brds)
-      else interactivePlay ((playARoundUsingL cleverMove brd (fromJust mv)) : (brd:brds))
+      putStr $ show brd
+      mv <- getMove brd
+      if isNothing mv
+        then return (brd:brds)
+        else interactivePlay ((playARoundUsingL cleverMove brd (fromJust mv)) : (brd:brds))
 
 getPlayer :: IO Player
 getPlayer = go ("Who to play as? " ++ (show players)  ++ " -- N to quit")
   where go prompt = do
-              putStrLn prompt
-              input <- getLine
-              let ply = readMaybe input :: Maybe Player
-              if isJust ply
-                then return $ fromJust ply
-                else go ("Please select one of: " ++ (show players)  ++ " -- N to quit")
+             putStrLn prompt
+             input <- getLine
+             let ply = readMaybe input :: Maybe Player
+             if isJust ply
+               then return $ fromJust ply
+               else go ("Please select one of: " ++ (show players)  ++ " -- N to quit")
 
 getMove :: Board -> IO (Maybe Location)
 getMove brd =  if null $ upl
      then
       return Nothing
      else
-      go
-        where go = do
-                     putStrLn  ("Next move? " ++ show upl)
-                     input <- getLine
-                     let loc = readMaybe input :: Maybe Location
-                     if isJust loc  && elem (fromJust loc) upl
-                       then return loc
-                       else go
+      go "Next move? "
+        where go prompt = do
+                putStrLn  (prompt ++ show upl)
+                input <- getLine
+                let loc = readMaybe input :: Maybe Location
+                if isJust loc  && elem (fromJust loc) upl
+                  then return loc
+                  else go "Please select one of: "
               upl = unplayedLocations brd
