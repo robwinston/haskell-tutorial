@@ -1,4 +1,4 @@
-module Misc.Cards where
+module Hearts.Cards where
 
 -- https://rosettacode.org/wiki/Playing_cards#Haskell
 -- model for own work
@@ -9,7 +9,7 @@ data Pip = Two | Three | Four | Five | Six | Seven | Eight | Nine | Ten |
            Jack | Queen | King | Ace
   deriving (Ord, Enum, Bounded, Eq, Show)
 
-data Suit = Diamonds | Spades | Hearts | Clubs
+data Suit = Clubs | Diamonds | Spades | Hearts
   deriving (Ord, Enum, Bounded, Eq, Show)
 
 type Card = (Pip, Suit)
