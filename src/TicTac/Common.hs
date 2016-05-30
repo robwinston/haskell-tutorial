@@ -167,10 +167,9 @@ showGame ((Game brds)) = (gameString "Game sequence: \n" brds) ++ "Moves: " ++ m
           | otherwise = show $ movesList (head brds) (last brds)
         gameString :: String -> [Board] -> String
         gameString str [] = str ++ "No boards!"
-        gameString str (brd:brds)
-          | null brds = str ++ show brd ++ "\n" ++ show (movesCount brd) ++ " move" ++ plural ++ " made\n"
-          | otherwise = gameString (str ++ show brd ++ "\n") brds
+        gameString str (brd:[]) = str ++ show brd ++ "\n" ++ show (movesCount brd) ++ " move" ++ plural ++ " made\n"
           where plural = if (movesCount brd) /= 1 then "s" else ""
+        gameString str (brd:brds) = gameString (str ++ show brd ++ "\n") brds
 
 -- \ Game functions
 

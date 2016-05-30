@@ -8,6 +8,7 @@ import Text.Read
 import Data.Maybe
 import Data.Char
 
+
 main =
   do
     games <- playGames []
